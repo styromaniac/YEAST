@@ -1,5 +1,5 @@
 <img src="https://raw.githubusercontent.com/styromaniac/YEAST/main/YEAST.png" height="256" width="256">
-<img src="[https://raw.githubusercontent.com/styromaniac/YEAST/main/YEAST.png](https://raw.githubusercontent.com/styromaniac/YEAST/main/YEAST-word.png)" width="256">
+<img src="https://raw.githubusercontent.com/styromaniac/YEAST/main/YEAST-word.png" width="256">
 
 yuzu early access software tracker
 
