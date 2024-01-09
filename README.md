@@ -1,4 +1,4 @@
-<img src="https://github.com/styromaniac/YEAST/assets/43807387/49ad866a-637b-456a-b045-083adb25026f.png" height="320">
+<img src="https://github.com/styromaniac/YEAST/assets/43807387/49ad866a-637b-456a-b045-083adb25026f.png" height="640">
 
 yuzu early access software tracker
 
@@ -6,5 +6,5 @@ Simple, code-readable yuzu early access installer/updater for SteamOS and other 
 
 Installation via terminal:
 ```
-curl -Ls https://raw.githubusercontent.com/styromaniac/YEAST/main/YEAST-installer.sh | bash
+curl -Ls https://github.com/styromaniac/YEAST/raw/main/YEAST-installer.sh | bash
 ```
