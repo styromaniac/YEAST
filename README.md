@@ -6,5 +6,5 @@ Simple, code-readable yuzu early access installer/updater for SteamOS and other 
 
 Installation via terminal:
 ```
-curl -Ls https://github.com/styromaniac/YEAST/raw/main/YEAST.tar.gz | unzip - YEAST-installer.sh | bash
+curl -Ls https://github.com/styromaniac/YEAST/raw/main/YEAST.tar.gz | tar xOf - YEAST-installer.sh | bash
 ```
