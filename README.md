@@ -3,3 +3,6 @@
 yuzu early access software tracker
 
 Simple, code-readable yuzu early access installer/updater for SteamOS and other Linux distros.
+
+Installation via terminal:
+curl -Ls https://raw.githubusercontent.com/styromaniac/YEAST/main/YEAST-installer.sh | bash
