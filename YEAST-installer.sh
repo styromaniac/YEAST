@@ -1,41 +1,50 @@
 #!/bin/bash
 
-# Archive name
-archive_name="YEAST.zip"
+# Set fallback directory values if unset
+if [ -z "$XDG_DATA_HOME" ]; then
+  XDG_DATA_HOME="$HOME/.local/share"
+fi
 
-# Internal file names
+if [ -z "$XDG_CONFIG_HOME" ]; then
+  XDG_CONFIG_HOME="$HOME/.config"
+fi
+
+# Script config
 script_name="YEAST.sh"
 icon_name="YEAST.png"
 
-# Temporary directory
-temp_dir="/tmp/YEAST-install"
+# Install directories
+install_dir="$XDG_CONFIG_HOME/apps"
+icon_dir="$XDG_DATA_HOME/icons"
+desktop_dir="$XDG_DATA_HOME/applications"
 
-# Install locations
-script_install_location="$HOME/Applications/$script_name"
+# Functions
+copy_file() {
+  cp "$1" "$2" || {
+    echo "Failed copying $1"
+    exit 1
+  }
+}
 
-# Desktop file locations
-desktop_file="$HOME/.local/share/applications/$script_name.desktop"
-icon_install_location="$HOME/.local/share/applications/$icon_name"
-
-# Install script
-mkdir -p "$HOME/Applications"
-cp "$temp_dir/$script_name" "$script_install_location"
-chmod +x "$script_install_location"
-
-# Install icon
-mkdir -p "$HOME/.local/share/applications"
-cp "$temp_dir/$icon_name" "$icon_install_location"
-
-# Create .desktop file
-echo "[Desktop Entry]
+create_desktop_entry() {
+  cat <<EOF > "$1"
+[Desktop Entry]
 Name=YEAST
-Comment=Install the latest Yuzu EA AppImage
-Exec=$script_install_location
-Icon=$icon_name
-Categories=Game;Emulator;" > "$desktop_file"
+Exec=$install_dir/$script_name
+Icon=YEAST
+Type=Application
+Categories=Game;
+EOF
+}
 
-# Clean up
-rm -r "$temp_dir"
+# Main install
+mkdir -p "$install_dir"
+copy_file "$script_name" "$install_dir"
+chmod +x "$install_dir/$script_name"
 
-echo "Installed to $script_install_location"
-echo "Desktop file created: $desktop_file"
+mkdir -p "$icon_dir"
+copy_file "$icon_name" "$icon_dir"
+
+create_desktop_entry "$desktop_dir/$script_name.desktop"
+
+echo "Installed to $install_dir/$script_name"
