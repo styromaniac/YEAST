@@ -15,8 +15,9 @@ Change START IN to:
 /bin
 ```
 Change LAUNCH OPTIONS to:
+```
 -e "$HOME/.config/apps/YEAST.sh"
-
+```
 Launching YEAST will appear to do nothing, but it's actually working in the background. When the job is complete, you'll be returned back to the YEAST page in your library.
 
 YEAST will not redownload the same version of yuzu-ea.AppImage that's already installed, thus using minimal bandwidth while checking for newer releases.
