@@ -6,6 +6,7 @@ Simple, code-readable yuzu early access installer/updater for SteamOS and other 
 
 Instructions to Add YEAST to Steam
 After installation...
+
 Change TARGET to:
 ```
 /bin/bash
