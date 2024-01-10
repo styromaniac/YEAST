@@ -1,4 +1,4 @@
-<img src="https://raw.githubusercontent.com/styromaniac/YEAST/main/YEAST-hero.png" height="256" width="256">
+<img src="https://raw.githubusercontent.com/styromaniac/YEAST/main/YEAST-hero.png" width="256">
 
 yuzu early access software tracker
 
