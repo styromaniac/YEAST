@@ -4,6 +4,8 @@ yuzu early access software tracker
 
 A simple, code-readable yuzu early access installer/updater for Steam on SteamOS and other Linux distros without additional dependencies.
 
+(Instructions might be incorrect. I'm trying to figure out the issue.)
+
 Instructions after installing YEAST and adding it to Steam:
 
 In Steam under YEAST > Properties > Shortcut...
