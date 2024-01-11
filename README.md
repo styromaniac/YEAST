@@ -22,6 +22,6 @@ Change LAUNCH OPTIONS to:
 
 YEAST needs to first be launched without Steam if yuzu-ea.AppImage isn't preinstalled to /home/Applications, then it can update yuzu-ea.AppImage via Steam.
 
-Launching YEAST will appear to do nothing, but it's actually working in the background. When the job is complete, you'll be returned back to the YEAST page in your library.
+Launching YEAST will appear to do nothing, but it's actually working in the background. When the job is complete, you'll be returned back to the YEAST page in your library if YEAST is launched via Steam.
 
 YEAST will not redownload the same version of yuzu-ea.AppImage that's already installed, thus using minimal bandwidth while checking for newer releases.
