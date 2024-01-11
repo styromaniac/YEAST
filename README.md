@@ -6,7 +6,7 @@ A simple, code-readable yuzu early access installer/updater for Steam on SteamOS
 
 Instructions after installing YEAST and adding it to Steam:
 
-In Steam under YEAST Properties > Shortcut...
+In Steam under YEAST > Properties > Shortcut...
 
 Change TARGET to:
 ```
