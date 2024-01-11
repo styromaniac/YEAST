@@ -20,7 +20,7 @@ Change LAUNCH OPTIONS to:
 -e "$HOME/.config/apps/YEAST.sh"
 ```
 
-YEAST needs to first be launched via desktop if yuzu-ea.AppImage isn't preinstalled to /home/Applications, then it can update the app via Big Picture Mode/Gaming Mode.
+YEAST needs to first be launched without Steam if yuzu-ea.AppImage isn't preinstalled to /home/Applications, then it can update yuzu-ea.AppImage via Steam.
 
 Launching YEAST will appear to do nothing, but it's actually working in the background. When the job is complete, you'll be returned back to the YEAST page in your library.
 
