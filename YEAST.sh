@@ -6,7 +6,7 @@ log_file="$HOME/Applications/yuzu-ea-revision.log"
 appimage_path="$HOME/Applications/yuzu-ea.AppImage"
 
 # Fetch the latest release tag from the GitHub page
-latest_tag=$(curl -s https://github.com/pineappleEA/pineapple-src/releases | grep -oP 'EA-\K\d+' | head -n 1)
+latest_tag=$(curl -s -Z https://github.com/pineappleEA/pineapple-src/releases | grep -oP 'EA-\K\d+' | head -n 1)
 
 if [ -z "$latest_tag" ]; then
     echo "Failed to find the latest release tag."
@@ -37,5 +37,5 @@ chmod +x "$appimage_path"
 echo "$latest_tag" > "$log_file"
 
 echo "Download complete. Yuzu EA revision EA-$latest_tag has been installed."
-
 mpg123 chime.mp3 > /dev/null 2>&1
+read -p "Press enter to exit..."
