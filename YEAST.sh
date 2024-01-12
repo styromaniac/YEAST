@@ -10,10 +10,8 @@ latest_tag=$(curl -s https://github.com/pineappleEA/pineapple-src/releases | gre
 
 if [ -z "$latest_tag" ]; then
     echo "Failed to find the latest release tag."
-    while true; do
-    sleep 1
-    done
-
+    read -p "Press enter to exit..."
+    exit 1
 fi
 
 # Check if the latest version is already installed
@@ -21,9 +19,8 @@ if [ -f "$log_file" ]; then
     installed_tag=$(cat "$log_file")
     if [ "$latest_tag" = "$installed_tag" ]; then
         echo "The latest version (EA-$latest_tag) is already installed."
-        while true; do
-        sleep 1
-        done
+        read -p "Press enter to exit..."
+        exit 0
     fi
 fi
 
