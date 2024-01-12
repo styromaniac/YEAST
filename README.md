@@ -8,11 +8,18 @@ A simple, code-readable yuzu early access installer/updater for Steam on SteamOS
 
 1. [Install Black Box.](https://flathub.org/apps/com.raggesilver.BlackBox)
 
-2.Add Black Box to Steam.
+2. Add Black Box to Steam.
 
-3. Append to the end LAUNCH OPTIONS:
+3. Navigate to Black Box in your Steam library.
+
+4. Press on the gear icon.
+
+5. Change the name to YEAST
+
+6. Append to the end of the LAUNCH OPTIONS string:
 ```
 --command $HOME/Applications/YEAST.sh
 ```
+Now you can apply custom artwork using the Decky plugin SteamGridDB or right-clicking where the artwork is absent.
 
 YEAST will not redownload the same version of yuzu-ea.AppImage that's already installed, thus using minimal bandwidth while checking for newer releases.
