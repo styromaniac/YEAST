@@ -18,7 +18,7 @@ A simple, code-readable yuzu early access installer/updater for Steam on SteamOS
 
 6. Append to the end of the LAUNCH OPTIONS string:
 ```
---command $HOME/Applications/YEAST.sh
+ --command $HOME/Applications/YEAST.sh
 ```
 You might hear a chime sound when YEAST-installer.sh or YEAST.sh succeeds.
 
