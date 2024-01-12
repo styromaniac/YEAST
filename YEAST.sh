@@ -37,5 +37,5 @@ chmod +x "$appimage_path"
 echo "$latest_tag" > "$log_file"
 
 echo "Download complete. Yuzu EA revision EA-$latest_tag has been installed."
-mpg123 chime.mp3 > /dev/null 2>&1
+mpg123 $HOME/Applications/chime.mp3 > /dev/null 2>&1
 read -p "Press enter to exit..."
