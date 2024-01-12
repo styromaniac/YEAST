@@ -12,7 +12,7 @@ A simple, code-readable yuzu early access installer/updater for Steam on SteamOS
 
 3. Navigate to Black Box in your Steam library.
 
-4. Press on the gear icon.
+4. Press/click on the gear icon.
 
 5. Change the name to YEAST
 
@@ -20,6 +20,6 @@ A simple, code-readable yuzu early access installer/updater for Steam on SteamOS
 ```
 --command $HOME/Applications/YEAST.sh
 ```
-Now you can apply custom artwork using the Decky plugin SteamGridDB or right-clicking where the artwork is absent.
+Now you can apply custom artwork using the Decky plugin SteamGridDB (only on SteamOS 3+) or right-clicking where the artwork is absent.
 
 YEAST will not redownload the same version of yuzu-ea.AppImage that's already installed, thus using minimal bandwidth while checking for newer releases.
