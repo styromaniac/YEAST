@@ -20,8 +20,6 @@ A simple, code-readable yuzu early access installer/updater for Steam on SteamOS
 ```
  --command $HOME/Applications/YEAST.sh
 ```
-You might hear a chime sound when YEAST-installer.sh or YEAST.sh succeeds.
-
 Now you can apply the custom artwork using the [Decky Loader](https://decky.xyz/) plugin SteamGridDB (only on SteamOS 3+) or right-clicking where the artwork is absent.
 
 YEAST will not redownload the same version of yuzu-ea.AppImage that's already installed, thus using minimal bandwidth while checking for newer releases.
