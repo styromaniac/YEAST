@@ -14,7 +14,7 @@ A simple, code-readable yuzu early access installer/updater for Steam on SteamOS
 
 4. Press/click on the gear icon.
 
-5. Change the name to YEAST
+5. Change the name to YEAST.
 
 6. Append to the end of the LAUNCH OPTIONS string:
 ```
