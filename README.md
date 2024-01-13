@@ -2,7 +2,7 @@
 
 # yuzu early access software tracker
 
-A simple, code-readable yuzu early access installer/updater for Steam on SteamOS and other Linux distros without additional dependencies, except for the Black Box Flatpak.
+A simple, code-readable yuzu early access installer/updater for Steam on SteamOS and other Linux distros without additional dependencies, except for the Black Box Flatpak. This app complements (instead of competes with) EmuDeck.
 
 ## Instructions...
 
