@@ -12,7 +12,6 @@ fi
 # Script config
 script_name="YEAST.sh"
 icon_name="YEAST.png"
-audio_file="chime.mp3" # Define the audio file name
 
 # Install directories
 install_dir="$XDG_CONFIG_HOME"
@@ -46,11 +45,7 @@ chmod +x "$install_dir/$script_name"
 mkdir -p "$icon_dir"
 copy_file "$icon_name" "$icon_dir"
 
-# Copy the audio file to the install directory
-copy_file "$audio_file" "$install_dir" # New line for copying the audio file
-
 create_desktop_entry "$desktop_dir/$script_name.desktop"
 
 echo "Installed to $install_dir/$script_name"
 
-mpg123 chime.mp3 > /dev/null 2>&1
