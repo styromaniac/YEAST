@@ -11,7 +11,7 @@ fi
 
 # Script config
 script_name="YEAST.sh"
-icon_name="YEAST.png"
+icon_name="YEAST-logo.png"
 
 # Install directories
 install_dir="$XDG_CONFIG_HOME"
