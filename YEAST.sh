@@ -1,5 +1,18 @@
 #!/bin/bash
 
+# ASCII Art for YEAST
+cat << "EOF"
+
+Y   Y EEEEE   AAA    SSSS TTTTT
+ Y Y  E      A   A  S       T
+  Y   EEEE   AAAAA   SSS    T
+  Y   E      A   A      S   T
+  Y   EEEEE  A   A  SSSS    T
+
+yuzu early access software tracker
+
+EOF
+
 unset LD_PRELOAD
 
 log_file="$HOME/Applications/yuzu-ea-revision.log"
@@ -45,11 +58,11 @@ installed_tag=""
 backup_tag=""
 if [ -f "$log_file" ]; then
     installed_tag=$(cat "$log_file")
-    echo "Currently installed version: EA-$installed_tag"
+    echo "Past installed version: EA-$installed_tag"
 fi
 if [ -f "$backup_log_file" ]; then
     backup_tag=$(cat "$backup_log_file")
-    echo "Currently backed up version: EA-$backup_tag"
+    echo "Past backed up version: EA-$backup_tag"
 fi
 
 # Menu creation logic with pagination
@@ -94,8 +107,6 @@ if [[ "$revision" == "Next Page" ]] || [[ "$revision" == "Previous Page" ]]; the
     exit 1
 fi
 
-echo "Selected revision: EA-$revision has been installed from backup."
-
 # Rotate the revisions: installed -> temp -> backup -> installed
 if [ -f "$appimage_path" ]; then
     cp "$appimage_path" "$temp_path"
@@ -114,6 +125,8 @@ if [ -f "$backup_log_file" ]; then
 else
     skip_download=false
 fi
+
+echo "Revision $revision has been installed from backup."
 
 # Download the AppImage only if not skipping
 if [ "$skip_download" = false ]; then
@@ -135,6 +148,18 @@ fi
 if [ -f "$temp_path" ]; then
     mv "$temp_path" "$backup_path"
     [ -f "$temp_log_file" ] && mv "$temp_log_file" "$backup_log_file"
+fi
+
+# Check the currently installed and backed up versions
+installed_tag=""
+backup_tag=""
+if [ -f "$log_file" ]; then
+    installed_tag=$(cat "$log_file")
+    echo "Currently installed version: EA-$installed_tag"
+fi
+if [ -f "$backup_log_file" ]; then
+    backup_tag=$(cat "$backup_log_file")
+    echo "Currently backed up version: EA-$backup_tag"
 fi
 
 read -p "Press Enter to exit..."
