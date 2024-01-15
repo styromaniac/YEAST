@@ -78,7 +78,18 @@ while true; do
     [ -n "$next_url" ] && MENU_OPTIONS+=("Next Page" "")
     [ -n "$prev_url" ] && MENU_OPTIONS+=("Previous Page" "")
 
-    revision=$(whiptail --title "Select Yuzu EA Revision" --menu "Choose a revision to install:" 20 78 12 "${MENU_OPTIONS[@]}" 3>&1 1>&2 2>&3)
+    # Determine the terminal size
+    terminal_height=$(tput lines)
+    terminal_width=$(tput cols)
+
+    # Calculate the menu size
+    # Subtract a few lines to account for the menu title and footer
+    menu_height=$((terminal_height - 3))
+    menu_width=$((terminal_width - 4))
+    menu_list_height=$((menu_height - 8))  # Adjust height for menu list
+
+    # Launch the whiptail menu with the new dimensions
+    revision=$(whiptail --title "Select Yuzu EA Revision" --menu "Choose a revision to install:" $menu_height $menu_width $menu_list_height "${MENU_OPTIONS[@]}" 3>&1 1>&2 2>&3)
 
     exit_status=$?
     if [ $exit_status -ne 0 ]; then
