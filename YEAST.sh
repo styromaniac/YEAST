@@ -1,34 +1,5 @@
 #!/bin/bash
 
-# ASCII Art for YEAST
-cat << "EOF"
-   ....              .....      .....  ....  .......                ..                   ..:.           .. ..    ..:.   ..
- :---::...         :::.--::.   :-:--:.::-::::==--::::.         .::....=.           .......-=+=...     .:--==.::::-+=**::-:-:
-%%==*=:=--:.       +**=-+*+-   +#***++===+-=+##%==-+-=-        ==:---=-*.         .::::=--=-.-:-::--  :==..:.***..-*..:+*-#+#
- %%%......=      :==%#%*++==:  ...--:::*+++++==+**++++        --=..:**..+         :=+-**#*%=*##***** .:+:-++++=:-==+###%%#%#*
-%@@:-=--:::::   ==-:.-:.:*#== -=++..:.=*%++#**=##===#*       .-=:-===-===       .=+.**.:##@#*#****++ #*.==+-:=-+*#%%@%%@%%#%
- @%###*=-=--.   =*++++:+-*+   =*#%**+=-=+=--*++=-==-=+       ....***++**++      -=-++-:+*%%*+%*#%#**  ==+*#:=+*#%@#==#@%#%%#
- %@%%%%......:..::::.-+++=*   :=-===...:                     .:-==%-.-:-:*      .=*.-:-###   %*##++    # -=**:..:::###
-   @@@=++=.---==+-:=:-%*+*    ::-=====--                     =+***%=++*+++      +.:+*+...:::.               +:-=-***%
-    %@%%%#*+=+-:.*+*++##+     =*:.::#......::.....          ...#:-:-=%#*#+      -++=+..=-.-===             .:-=++*%=:
-     %%%@#..:::=+...*#*+      *#*#*#-*+-:.-*:-:-:--.       :-:=++**#*....*+      .:=#:+*-#*####..           -.....:.##
-       @--=-+=+*=-::-#+        ..#==###==-=-+++++=+=       -...-:+*%===**.-:     +++:=+*#**%%:.:.:::       .:-=:+:.=+%
-       %%%*:::..**#+=+        :--.::.-##*=+=*++=====      :::-----#%*####%#*        +:*==++%=-..:==+=      .=+**+:#*#%
-        @%::..::.:##=         ###*+*#*++===+%*+**+=       -+=*+-++##%*..==##          +++=+#++**#*##+      -+++*#%%%##
-        %+*-+=**+::*           ..###**%+=*=-*=--*=+      .==++***+%@*-*++*==+             :==#...%##*      -==+:+#*@%
-         %%%****++:*          *+*+%++=:.=                =.:...+-*# ..**:::=++    ....     *:::=:==#*       ..-:=.=-==
-         -++.::::.++          **#:-::++-                ---+*++=:--:*#+%*+*:--   ::-:=--:.-====+*#+**      .=#*#+**%##
-         -@-*-+---:=          --=**+#+.::-:.::..        -=*#####==*+#+:----**+   +#*##:::--:-%#%%%#*       -.:--=#::::
-         %%%%%%#%#+-           .::::.:*#*=..=++:::.-   --=%@@%+=%%%%%+*%+#+..-* =%**#*-=*=+##%###*%%       :=+*###+***
-        ==+%@@%##++#          -+=-++--%@::-==-%=+=--.  =.::-+%##@##@%##%%--::--  +*#%%*#*##%#@####          .#%::::=%%
-         #@*#%%%#**+          +#######@%#%##%#@%%##*. =-+=***#%##@%%%#%@#+#=++#+  ##%*#%**#%##             =+=:-==*%%%
-         ##%#@%#+#=            **####@%%##%%##@%#*+*+ -#*####%@%      %%%#####*+        *##                 .:=*%%%%##
-         ##%**+*#=+            +##%%#####%%%%#%###*#   ##@%@###         ##@%%##                             #**#%@@%%#
-           ***%*++                  #     %%              #                ##                                   **##
-
-yuzu early access software tracker
-EOF
-
 unset LD_PRELOAD
 
 log_file="$HOME/Applications/yuzu-ea-revision.log"
@@ -38,21 +9,29 @@ appimage_path="$HOME/Applications/yuzu-ea.AppImage"
 backup_path="$HOME/Applications/yuzu-ea-backup.AppImage"
 temp_path="/dev/shm/yuzu-ea-temp.AppImage"
 
-# Function to fetch and parse releases from GitHub
+# Function to fetch and parse releases using GitHub REST API
 fetch_releases() {
     local url=$1
-    curl -s -Z --max-time 60 "$url" | grep -oP 'EA-\K\d+' | sort -ur
+    curl -s "$url" | jq -r '.[].tag_name' | grep -oP 'EA-\K\d+' | sort -ur
 }
 
-# Function to get the URLs for previous and next pages
+# Function to get the URLs for previous and next pages from API response headers
 get_pagination_urls() {
     local url=$1
-    prev_url=$(curl -s "$url" | grep -oP '(?<=href=")[^"]*(?=">Previous)' | head -1)
-    next_url=$(curl -s "$url" | grep -oP '(?<=href=")[^"]*(?=">Next)' | head -1)
+    response=$(curl -s -I "$url")
+    prev_url=$(echo "$response" | grep -oP '(?<=<)[^>]*(?=>; rel="prev")' | head -1)
+    next_url=$(echo "$response" | grep -oP '(?<=<)[^>]*(?=>; rel="next")' | head -1)
 }
 
-# Initial URL
-current_url="https://github.com/pineappleEA/pineapple-src/releases"
+# Function to convert relative URL to absolute URL
+convert_to_absolute_url() {
+    local base_url="https://api.github.com"
+    local relative_url=$1
+    echo "$base_url${relative_url}"
+}
+
+# Initial URL for GitHub API
+current_url="https://api.github.com/repos/pineappleEA/pineapple-src/releases"
 get_pagination_urls "$current_url"
 available_tags=$(fetch_releases "$current_url")
 
@@ -78,41 +57,66 @@ fi
 # Menu creation logic with pagination
 while true; do
     MENU_OPTIONS=()
+    DEFAULT_ITEM=""
+
+    # Add 'Previous Page' option at the top if available
+    if [ -n "$prev_url" ]; then
+        MENU_OPTIONS+=("Previous Page" "")
+    fi
+
+    # Add available tags (revisions)
     for tag in $available_tags; do
         menu_entry="$tag"
         [ "$tag" == "$installed_tag" ] && menu_entry+=" (installed)"
         [ "$tag" == "$backup_tag" ] && menu_entry+=" (backed up)"
         MENU_OPTIONS+=("$menu_entry" "")
+        # Set the latest revision as the default item
+        [ -z "$DEFAULT_ITEM" ] && DEFAULT_ITEM="$menu_entry"
     done
 
-    [ -n "$next_url" ] && MENU_OPTIONS+=("Next Page" "")
-    [ -n "$prev_url" ] && MENU_OPTIONS+=("Previous Page" "")
+    # Add 'Next Page' option at the bottom if available
+    if [ -n "$next_url" ]; then
+        MENU_OPTIONS+=("Next Page" "")
+    fi
 
     # Determine the terminal size
     terminal_height=$(tput lines)
     terminal_width=$(tput cols)
 
     # Calculate the menu size
-    # Subtract a few lines to account for the menu title and footer
     menu_height=$((terminal_height - 3))
     menu_width=$((terminal_width - 4))
-    menu_list_height=$((menu_height - 8))  # Adjust height for menu list
+    menu_list_height=$((menu_height - 8))
 
-    # Launch the whiptail menu with the new dimensions
-    revision=$(whiptail --title "Select Yuzu EA Revision" --menu "Choose a revision to install:" $menu_height $menu_width $menu_list_height "${MENU_OPTIONS[@]}" 3>&1 1>&2 2>&3)
+    # Launch the whiptail menu with the default item set to the latest revision
+    revision=$(whiptail --title "Select Yuzu EA Revision" --menu "Choose a revision to install:" $menu_height $menu_width $menu_list_height "${MENU_OPTIONS[@]}" --default-item "$DEFAULT_ITEM" 3>&1 1>&2 2>&3)
 
     exit_status=$?
     if [ $exit_status -ne 0 ]; then
-        echo "Operation cancelled."
-        exit 0
-    elif [ "$revision" == "Next Page" ]; then
-        current_url="https://github.com$next_url"
-        get_pagination_urls "$current_url"
-        available_tags=$(fetch_releases "$current_url")
+        echo "Operation cancelled or an error occurred."
+        exit $exit_status
+    fi
+
+    if [ "$revision" == "Next Page" ]; then
+        if [ -n "$next_url" ]; then
+            echo "Fetching from: $next_url"
+            get_pagination_urls "$next_url"
+            available_tags=$(fetch_releases "$next_url")
+            echo "Available tags: $available_tags"
+            current_url="$next_url"  # Update current URL
+        else
+            echo "No more pages."
+        fi
     elif [ "$revision" == "Previous Page" ]; then
-        current_url="https://github.com$prev_url"
-        get_pagination_urls "$current_url"
-        available_tags=$(fetch_releases "$current_url")
+        if [ -n "$prev_url" ]; then
+            echo "Fetching from: $prev_url"
+            get_pagination_urls "$prev_url"
+            available_tags=$(fetch_releases "$prev_url")
+            echo "Available tags: $available_tags"
+            current_url="$prev_url"  # Update current URL
+        else
+            echo "No previous page."
+        fi
     else
         # Remove additional text for processing
         revision=${revision// \(installed\)/}
@@ -120,6 +124,10 @@ while true; do
         [ "$revision" == "$installed_tag" ] && echo "Revision EA-$revision is already installed." && continue
         break
     fi
+
+    # Re-generate MENU_OPTIONS for the new page
+    get_pagination_urls "$current_url"
+    available_tags=$(fetch_releases "$current_url")
 done
 
 # Check if a valid revision is selected
@@ -147,10 +155,10 @@ else
     skip_download=false
 fi
 
-echo "Revision $revision has been installed from backup."
-
-# Download the AppImage only if not skipping
-if [ "$skip_download" = false ]; then
+if [ "$skip_download" = true ]; then
+    echo "Revision $revision has been installed from backup."
+else
+    # Download the AppImage
     appimage_url="https://github.com/pineappleEA/pineapple-src/releases/download/EA-${revision}/Linux-Yuzu-EA-${revision}.AppImage"
     echo "Downloading revision EA-$revision from $appimage_url..."
     curl -L --max-time 60 "$appimage_url" -o "$appimage_path" --create-dirs
@@ -183,4 +191,5 @@ if [ -f "$backup_log_file" ]; then
     echo "Currently backed up version: EA-$backup_tag"
 fi
 
-read -p "Press Enter to exit..."
+# Final prompt before exiting the script
+read -r -p "Press Enter to exit..." key
