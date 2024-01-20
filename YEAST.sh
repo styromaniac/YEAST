@@ -23,7 +23,7 @@ display_message() {
 # Function to prompt for GitHub token using Zenity or command line
 prompt_for_github_token() {
     if command -v zenity &> /dev/null; then
-        zenity --entry --title="GitHub Token" --text="Enter your GitHub access token:" --width=1100
+        zenity --entry --title="GitHub Token" --text="Enter your GitHub personal access token:" --width=1100
     else
         echo "Please enter your GitHub access token:"
         read -r token
@@ -38,7 +38,7 @@ read_github_token() {
         if [ -z "$token" ]; then
             token=$(prompt_for_github_token)
             if [ -z "$token" ]; then
-                display_message "No GitHub token provided. To generate a GitHub access token, visit https://github.com/settings/tokens"
+                display_message "No GitHub token provided. To generate a GitHub personal access token, visit https://github.com/settings/tokens"
                 exit 1
             else
                 echo "$token" > "$config_file"
@@ -49,7 +49,7 @@ read_github_token() {
         touch "$config_file"
         token=$(prompt_for_github_token)
         if [ -z "$token" ]; then
-            display_message "No GitHub token provided. To generate a GitHub access token, visit https://github.com/settings/tokens"
+            display_message "No GitHub token provided. To generate a GitHub personal access token, visit https://github.com/settings/tokens"
             exit 1
         else
             echo "$token" > "$config_file"
