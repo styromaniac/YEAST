@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/env bash
 
 unset LD_PRELOAD
 
