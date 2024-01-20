@@ -10,13 +10,50 @@ backup_path="$HOME/Applications/yuzu-ea-backup.AppImage"
 temp_path="/dev/shm/yuzu-ea-temp.AppImage"
 config_file="$HOME/.config/YEAST.conf"
 
+# Function to display message using Zenity or echo
+display_message() {
+    local message=$1
+    if command -v zenity &> /dev/null; then
+        zenity --info --text="$message" --width=1100
+    else
+        echo "$message"
+    fi
+}
+
+# Function to prompt for GitHub token using Zenity or command line
+prompt_for_github_token() {
+    if command -v zenity &> /dev/null; then
+        zenity --entry --title="GitHub Token" --text="Enter your GitHub access token:" --width=1100
+    else
+        echo "Please enter your GitHub access token:"
+        read -r token
+        echo "$token"
+    fi
+}
+
 # Function to read GitHub Access Token
 read_github_token() {
     if [ -f "$config_file" ]; then
-        cat "$config_file"
+        token=$(cat "$config_file")
+        if [ -z "$token" ]; then
+            token=$(prompt_for_github_token)
+            if [ -z "$token" ]; then
+                display_message "No GitHub token provided. To generate a GitHub access token, visit https://github.com/settings/tokens"
+                exit 1
+            else
+                echo "$token" > "$config_file"
+            fi
+        fi
+        echo "$token"
     else
-        echo "GitHub access token file not found."
-        exit 1
+        touch "$config_file"
+        token=$(prompt_for_github_token)
+        if [ -z "$token" ]; then
+            display_message "No GitHub token provided. To generate a GitHub access token, visit https://github.com/settings/tokens"
+            exit 1
+        else
+            echo "$token" > "$config_file"
+        fi
     fi
 }
 
@@ -78,7 +115,7 @@ while true; do
 
     # Check for available releases
     if [ -z "$available_tags" ]; then
-        echo "Failed to find available releases."
+        echo "Failed to find available releases. Did you not enter an auth token?"
         read -p "Press Enter to exit..."
         exit 1
     fi
@@ -116,6 +153,7 @@ while true; do
             break  # Exit the while loop if the revision is found
         else
             echo "Revision EA-$requested_revision not found. Reloading..."
+            sleep 2
             # Continue the loop to reload the menu
             continue
         fi
