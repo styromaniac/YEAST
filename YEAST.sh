@@ -8,17 +8,31 @@ temp_log_file="/dev/shm/yuzu-ea-temp-revision.log"
 appimage_path="$HOME/Applications/yuzu-ea.AppImage"
 backup_path="$HOME/Applications/yuzu-ea-backup.AppImage"
 temp_path="/dev/shm/yuzu-ea-temp.AppImage"
+config_file="$HOME/.config/YEAST.conf"
 
-# Function to fetch and parse releases using GitHub REST API
-fetch_releases() {
-    local url=$1
-    curl -s "$url" | jq -r '.[].tag_name' | grep -oP 'EA-\K\d+' | sort -ur
+# Function to read GitHub Access Token
+read_github_token() {
+    if [ -f "$config_file" ]; then
+        cat "$config_file"
+    else
+        echo "GitHub access token file not found."
+        exit 1
+    fi
 }
 
-# Function to get the URLs for previous and next pages from API response headers
+# Assign the token to a variable
+github_token=$(read_github_token)
+
+# Function to fetch and parse releases using GitHub REST API with token
+fetch_releases() {
+    local url=$1
+    curl -s -H "Authorization: token $github_token" "$url" | jq -r '.[].tag_name' | grep -oP 'EA-\K\d+' | sort -ur
+}
+
+# Function to get the URLs for previous and next pages from API response headers with token
 get_pagination_urls() {
     local url=$1
-    response=$(curl -s -I "$url")
+    response=$(curl -s -I -H "Authorization: token $github_token" "$url")
     prev_url=$(echo "$response" | grep -oP '(?<=<)[^>]*(?=>; rel="prev")' | head -1)
     next_url=$(echo "$response" | grep -oP '(?<=<)[^>]*(?=>; rel="next")' | head -1)
 }
@@ -30,32 +44,84 @@ convert_to_absolute_url() {
     echo "$base_url${relative_url}"
 }
 
-# Initial URL for GitHub API
-current_url="https://api.github.com/repos/pineappleEA/pineapple-src/releases"
-get_pagination_urls "$current_url"
-available_tags=$(fetch_releases "$current_url")
+search_revision() {
+    local search_revision=$1
+    local search_url="https://api.github.com/repos/pineappleEA/pineapple-src/releases"
+    local found_revision="not_found"
 
-# Check for available releases
-if [ -z "$available_tags" ]; then
-    echo "Failed to find available releases."
-    read -p "Press Enter to exit..."
-    exit 1
-fi
+    while [ -n "$search_url" ]; do
+        get_pagination_urls "$search_url"
+        local tags=$(fetch_releases "$search_url")
+        for tag in $tags; do
+            if [ "$tag" == "$search_revision" ]; then
+                found_revision=$tag
+                echo "$found_revision"
+                return
+            fi
+            # Check if the current tag is less than the search_revision
+            if [ "$tag" -lt "$search_revision" ]; then
+                echo "$found_revision"
+                return
+            fi
+        done
+        search_url="$next_url"
+    done
+    echo "$found_revision"
+}
 
-# Check the currently installed and backed up versions
-installed_tag=""
-backup_tag=""
-if [ -f "$log_file" ]; then
-    installed_tag=$(cat "$log_file")
-    echo "Past installed version: EA-$installed_tag"
-fi
-if [ -f "$backup_log_file" ]; then
-    backup_tag=$(cat "$backup_log_file")
-    echo "Past backed up version: EA-$backup_tag"
-fi
-
-# Menu creation logic with pagination
+# Main loop
 while true; do
+    # Initial URL for GitHub API
+    current_url="https://api.github.com/repos/pineappleEA/pineapple-src/releases"
+    get_pagination_urls "$current_url"
+    available_tags=$(fetch_releases "$current_url")
+
+    # Check for available releases
+    if [ -z "$available_tags" ]; then
+        echo "Failed to find available releases."
+        read -p "Press Enter to exit..."
+        exit 1
+    fi
+
+    # Check the currently installed and backed up versions
+    installed_tag=""
+    backup_tag=""
+    if [ -f "$log_file" ]; then
+        installed_tag=$(cat "$log_file")
+        echo "Past installed version: EA-$installed_tag"
+    fi
+    if [ -f "$backup_log_file" ]; then
+        backup_tag=$(cat "$backup_log_file")
+        echo "Past backed up version: EA-$backup_tag"
+    fi
+
+    # Determine the terminal size
+    terminal_height=$(tput lines)
+    terminal_width=$(tput cols)
+
+    # Calculate the menu size
+    menu_height=$((terminal_height - 3))
+    menu_width=$((terminal_width - 4))
+    menu_list_height=$((menu_height - 8))
+
+    # Add Whiptail Input Box with matching window parameters
+    requested_revision=$(whiptail --title "Revision Input" --inputbox "Type a desired revision number to install or leave blank to browse revisions." $menu_height $menu_width 3>&1 1>&2 2>&3)
+
+    # Process the Input
+    if [ -n "$requested_revision" ]; then
+        found_revision=$(search_revision "$requested_revision")
+        if [ "$found_revision" != "not_found" ]; then
+            revision=$found_revision
+            echo "Found revision: EA-$revision"
+            break  # Exit the while loop if the revision is found
+        else
+            echo "Revision EA-$requested_revision not found. Reloading..."
+            # Continue the loop to reload the menu
+            continue
+        fi
+    fi
+
+    # Menu creation logic with pagination
     MENU_OPTIONS=()
     DEFAULT_ITEM=""
 
@@ -79,15 +145,6 @@ while true; do
         MENU_OPTIONS+=("Next Page" "")
     fi
 
-    # Determine the terminal size
-    terminal_height=$(tput lines)
-    terminal_width=$(tput cols)
-
-    # Calculate the menu size
-    menu_height=$((terminal_height - 3))
-    menu_width=$((terminal_width - 4))
-    menu_list_height=$((menu_height - 8))
-
     # Launch the whiptail menu with the default item set to the latest revision
     revision=$(whiptail --title "Select Yuzu EA Revision" --menu "Choose a revision to install:" $menu_height $menu_width $menu_list_height "${MENU_OPTIONS[@]}" --default-item "$DEFAULT_ITEM" 3>&1 1>&2 2>&3)
 
@@ -102,7 +159,6 @@ while true; do
             echo "Fetching from: $next_url"
             get_pagination_urls "$next_url"
             available_tags=$(fetch_releases "$next_url")
-            echo "Available tags: $available_tags"
             current_url="$next_url"  # Update current URL
         else
             echo "No more pages."
@@ -112,7 +168,6 @@ while true; do
             echo "Fetching from: $prev_url"
             get_pagination_urls "$prev_url"
             available_tags=$(fetch_releases "$prev_url")
-            echo "Available tags: $available_tags"
             current_url="$prev_url"  # Update current URL
         else
             echo "No previous page."
