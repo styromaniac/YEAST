@@ -20,7 +20,6 @@ A robust, code-readable yuzu early access installer/updater for Steam on SteamOS
 ```
  --command $HOME/Applications/YEAST.sh
 ```
-7. Launch YEAST from desktop mode to enter your GitHUB personal access token.
 
 Now you can apply the custom artwork using the [Decky Loader](https://decky.xyz/) plugin SteamGridDB (only on SteamOS 3+) or by right-clicking where the artwork is absent.
 
