@@ -10,51 +10,49 @@ backup_path="$HOME/Applications/yuzu-ea-backup.AppImage"
 temp_path="/dev/shm/yuzu-ea-temp.AppImage"
 config_file="$HOME/.config/YEAST.conf"
 
-# Function to display message using Zenity or echo
+# Function to display message using Zenity
 display_message() {
     local message=$1
-    if command -v zenity &> /dev/null; then
-        zenity --info --text="$message" --width=1100
-    else
-        echo "$message"
-    fi
+    zenity --info --text="$message" --width=400
 }
 
-# Function to prompt for GitHub token using Zenity or command line
+# Function to prompt for GitHub token using Zenity
 prompt_for_github_token() {
-    if command -v zenity &> /dev/null; then
-        zenity --entry --title="GitHub Token" --text="Enter your GitHub personal access token:" --width=1100
+    zenity --entry --title="GitHub Token" --text="Enter your GitHub personal access token:" --hide-text
+}
+
+# Function to validate GitHub Access Token
+validate_github_token() {
+    local token=$1
+    local url="https://api.github.com/repos/pineappleEA/pineapple-src/releases"
+    if curl -s -o /dev/null -w "%{http_code}" -H "Authorization: token $token" "$url" | grep -q "200"; then
+        echo "valid"
     else
-        echo "Please enter your GitHub access token:"
-        read -r token
-        echo "$token"
+        echo "invalid"
     fi
 }
 
 # Function to read GitHub Access Token
 read_github_token() {
-    if [ -f "$config_file" ]; then
-        token=$(cat "$config_file")
-        if [ -z "$token" ]; then
-            token=$(prompt_for_github_token)
-            if [ -z "$token" ]; then
-                display_message "No GitHub token provided. To generate a GitHub personal access token, visit https://github.com/settings/tokens"
-                exit 1
-            else
-                echo "$token" > "$config_file"
-            fi
-        fi
-        echo "$token"
-    else
-        touch "$config_file"
+    token=$(cat "$config_file" 2>/dev/null)
+    token_status=$(validate_github_token "$token")
+
+    while [ "$token_status" != "valid" ]; do
         token=$(prompt_for_github_token)
         if [ -z "$token" ]; then
             display_message "No GitHub token provided. To generate a GitHub personal access token, visit https://github.com/settings/tokens"
-            exit 1
-        else
-            echo "$token" > "$config_file"
+            continue
         fi
-    fi
+
+        token_status=$(validate_github_token "$token")
+        if [ "$token_status" = "valid" ]; then
+            echo "$token" > "$config_file"
+        else
+            display_message "Invalid GitHub token provided. Please enter a valid token."
+        fi
+    done
+
+    echo "$token"
 }
 
 # Assign the token to a variable
@@ -95,7 +93,6 @@ search_revision() {
                 echo "$found_revision"
                 return
             fi
-            # Check if the current tag is less than the search_revision
             if [ "$tag" -lt "$search_revision" ]; then
                 echo "$found_revision"
                 return
@@ -106,136 +103,125 @@ search_revision() {
     echo "$found_revision"
 }
 
-# Main loop
-while true; do
-    # Initial URL for GitHub API
-    current_url="https://api.github.com/repos/pineappleEA/pineapple-src/releases"
-    get_pagination_urls "$current_url"
-    available_tags=$(fetch_releases "$current_url")
+# Function to download the AppImage with progress displayed through Zenity
+download_with_progress() {
+    local url=$1
+    local output_path=$2
 
-    # Check for available releases
-    if [ -z "$available_tags" ]; then
-        echo "Failed to find available releases. Did you not enter an auth token?"
-        read -p "Press Enter to exit..."
+    # Use curl to download the file with progress information
+    # and pipe it to Zenity's progress dialog
+    curl -L "$url" -o "$output_path" --progress-bar 2>&1 | \
+    stdbuf -oL tr '\r' '\n' | \
+    stdbuf -oL awk 'BEGIN {ORS=" "} {if(NR % 2 == 1) print int($0)}' | \
+    zenity --progress --title="Downloading" --text="Downloading Yuzu EA revision EA-$revision..." --auto-close --width=400 --percentage=0
+
+    if [ ! -f "$output_path" ]; then
+        display_message "Failed to download the AppImage. Check your internet connection or try again later."
         exit 1
     fi
 
-    # Check the currently installed and backed up versions
+    chmod +x "$output_path"
+    echo "$revision" > "$log_file"
+    display_message "Download complete. Yuzu EA revision EA-$revision has been installed."
+}
+
+# Main loop
+search_done=false
+while true; do
+    if ! $search_done; then
+        requested_revision=$(zenity --entry --title="Search for a Specific Revision" --text="Enter a revision number to search for (leave blank to browse):")
+        if [ -n "$requested_revision" ]; then
+            found_revision=$(search_revision "$requested_revision")
+            if [ "$found_revision" != "not_found" ]; then
+                installed_tag=$(cat "$log_file")
+                if [ "$found_revision" == "$installed_tag" ]; then
+                    display_message "Revision EA-$found_revision is already installed."
+                    continue
+                fi
+                revision=$found_revision
+                break
+            else
+                display_message "Revision EA-$requested_revision not found."
+                continue
+            fi
+        fi
+        search_done=true
+    fi
+
+    current_url="${current_url:-https://api.github.com/repos/pineappleEA/pineapple-src/releases}"
+    get_pagination_urls "$current_url"
+    available_tags=$(fetch_releases "$current_url")
+
+    if [ -z "$available_tags" ]; then
+        display_message "Failed to find available releases. Did you not enter an auth token?"
+        exit 1
+    fi
+
     installed_tag=""
     backup_tag=""
     if [ -f "$log_file" ]; then
         installed_tag=$(cat "$log_file")
-        echo "Past installed version: EA-$installed_tag"
     fi
     if [ -f "$backup_log_file" ]; then
         backup_tag=$(cat "$backup_log_file")
-        echo "Past backed up version: EA-$backup_tag"
     fi
 
-    # Determine the terminal size
-    terminal_height=$(tput lines)
-    terminal_width=$(tput cols)
-
-    # Calculate the menu size
-    menu_height=$((terminal_height - 3))
-    menu_width=$((terminal_width - 4))
-    menu_list_height=$((menu_height - 8))
-
-    # Add Whiptail Input Box with matching window parameters
-    requested_revision=$(whiptail --title "Revision Input" --inputbox "Type a desired revision number to install or leave blank to browse revisions." $menu_height $menu_width 3>&1 1>&2 2>&3)
-
-    # Process the Input
-    if [ -n "$requested_revision" ]; then
-        found_revision=$(search_revision "$requested_revision")
-        if [ "$found_revision" != "not_found" ]; then
-            revision=$found_revision
-            echo "Found revision: EA-$revision"
-            break  # Exit the while loop if the revision is found
-        else
-            echo "Revision EA-$requested_revision not found. Reloading..."
-            sleep 2
-            # Continue the loop to reload the menu
-            continue
-        fi
-    fi
-
-    # Menu creation logic with pagination
     MENU_OPTIONS=()
-    DEFAULT_ITEM=""
 
-    # Add 'Previous Page' option at the top if available
-    if [ -n "$prev_url" ]; then
-        MENU_OPTIONS+=("Previous Page" "")
-    fi
-
-    # Add available tags (revisions)
     for tag in $available_tags; do
         menu_entry="$tag"
         [ "$tag" == "$installed_tag" ] && menu_entry+=" (installed)"
         [ "$tag" == "$backup_tag" ] && menu_entry+=" (backed up)"
-        MENU_OPTIONS+=("$menu_entry" "")
-        # Set the latest revision as the default item
-        [ -z "$DEFAULT_ITEM" ] && DEFAULT_ITEM="$menu_entry"
+        MENU_OPTIONS+=("$menu_entry")
     done
 
-    # Add 'Next Page' option at the bottom if available
+    if [ -n "$prev_url" ]; then
+        MENU_OPTIONS=("Previous Page" "${MENU_OPTIONS[@]}")
+    fi
     if [ -n "$next_url" ]; then
-        MENU_OPTIONS+=("Next Page" "")
+        MENU_OPTIONS+=("Next Page")
     fi
 
-    # Launch the whiptail menu with the default item set to the latest revision
-    revision=$(whiptail --title "Select Yuzu EA Revision" --menu "Choose a revision to install:" $menu_height $menu_width $menu_list_height "${MENU_OPTIONS[@]}" --default-item "$DEFAULT_ITEM" 3>&1 1>&2 2>&3)
+    revision_selection=$(zenity --list --title="Select Yuzu EA Revision" --column="Revisions" "${MENU_OPTIONS[@]}" --height=400 --width=400)
 
-    exit_status=$?
-    if [ $exit_status -ne 0 ]; then
-        echo "Operation cancelled or an error occurred."
-        exit $exit_status
-    fi
-
-    if [ "$revision" == "Next Page" ]; then
-        if [ -n "$next_url" ]; then
-            echo "Fetching from: $next_url"
-            get_pagination_urls "$next_url"
-            available_tags=$(fetch_releases "$next_url")
-            current_url="$next_url"  # Update current URL
-        else
-            echo "No more pages."
-        fi
-    elif [ "$revision" == "Previous Page" ]; then
-        if [ -n "$prev_url" ]; then
-            echo "Fetching from: $prev_url"
-            get_pagination_urls "$prev_url"
-            available_tags=$(fetch_releases "$prev_url")
-            current_url="$prev_url"  # Update current URL
-        else
-            echo "No previous page."
-        fi
-    else
-        # Remove additional text for processing
-        revision=${revision// \(installed\)/}
-        revision=${revision// \(backed up\)/}
-        [ "$revision" == "$installed_tag" ] && echo "Revision EA-$revision is already installed." && continue
-        break
-    fi
-
-    # Re-generate MENU_OPTIONS for the new page
-    get_pagination_urls "$current_url"
-    available_tags=$(fetch_releases "$current_url")
+    case "$revision_selection" in
+        "Previous Page")
+            if [ -n "$prev_url" ]; then
+                current_url="$prev_url"
+            else
+                display_message "No previous page."
+            fi
+            ;;
+        "Next Page")
+            if [ -n "$next_url" ]; then
+                current_url="$next_url"
+            else
+                display_message "No next page."
+            fi
+            ;;
+        "")
+            display_message "No revision selected."
+            exit 1
+            ;;
+        *)
+            revision=${revision_selection// \(installed\)/}
+            revision=${revision// \(backed up\)/}
+            [ "$revision" == "$installed_tag" ] && display_message "Revision EA-$revision is already installed." && continue
+            break
+            ;;
+    esac
 done
 
-# Check if a valid revision is selected
 if [[ "$revision" == "Next Page" ]] || [[ "$revision" == "Previous Page" ]]; then
-    echo "Invalid selection."
+    display_message "Invalid selection."
     exit 1
 fi
 
-# Rotate the revisions: installed -> temp -> backup -> installed
 if [ -f "$appimage_path" ]; then
     cp "$appimage_path" "$temp_path"
     [ -f "$log_file" ] && cp "$log_file" "$temp_log_file"
 fi
 
-# Restore from backup if needed
 skip_download=false
 if [ -f "$backup_log_file" ]; then
     backup_revision=$(cat "$backup_log_file")
@@ -249,40 +235,24 @@ else
 fi
 
 if [ "$skip_download" = true ]; then
-    echo "Revision $revision has been installed from backup."
+    display_message "Revision $revision has been installed from backup."
 else
-    # Download the AppImage
     appimage_url="https://github.com/pineappleEA/pineapple-src/releases/download/EA-${revision}/Linux-Yuzu-EA-${revision}.AppImage"
-    echo "Downloading revision EA-$revision from $appimage_url..."
-    curl -L --max-time 60 "$appimage_url" -o "$appimage_path" --create-dirs
-
-    if [ ! -f "$appimage_path" ]; then
-        echo "Failed to download the AppImage. Check your internet connection or try again later."
-        exit 1
-    fi
-
-    chmod +x "$appimage_path"
-    echo "$revision" > "$log_file"  # Update log file after download
-    echo "Download complete. Yuzu EA revision EA-$revision has been installed."
+    download_with_progress "$appimage_url" "$appimage_path"
 fi
 
-# Rotate the backup
 if [ -f "$temp_path" ]; then
     mv "$temp_path" "$backup_path"
     [ -f "$temp_log_file" ] && mv "$temp_log_file" "$backup_log_file"
 fi
 
-# Check the currently installed and backed up versions
 installed_tag=""
 backup_tag=""
 if [ -f "$log_file" ]; then
     installed_tag=$(cat "$log_file")
-    echo "Currently installed version: EA-$installed_tag"
 fi
 if [ -f "$backup_log_file" ]; then
     backup_tag=$(cat "$backup_log_file")
-    echo "Currently backed up version: EA-$backup_tag"
 fi
 
-# Final prompt before exiting the script
-read -r -p "Press Enter to exit..." key
+zenity --info --text="Process completed. Press OK to exit."
