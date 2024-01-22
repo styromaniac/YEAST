@@ -163,6 +163,8 @@ def download_with_progress(url, output_path):
 
 # Main loop
 search_done = False
+current_url = "https://api.github.com/repos/pineappleEA/pineapple-src/releases"
+
 while True:
     if not search_done:
         requested_revision = subprocess.run(['zenity', '--entry', '--title', 'Search for a Specific Revision',
@@ -186,7 +188,7 @@ while True:
                 continue
         search_done = True
 
-    current_url = "https://api.github.com/repos/pineappleEA/pineapple-src/releases"
+    # Fetch URLs for the current page
     prev_url, next_url = get_pagination_urls(current_url)
     available_tags = fetch_releases(current_url)
 
@@ -222,11 +224,13 @@ while True:
     if revision_selection == "Previous Page":
         if prev_url:
             current_url = prev_url
+            continue  # Go to the next iteration of the loop to load the previous page
         else:
             display_message("No previous page.")
     elif revision_selection == "Next Page":
         if next_url:
             current_url = next_url
+            continue  # Go to the next iteration of the loop to load the next page
         else:
             display_message("No next page.")
     elif revision_selection == "":
