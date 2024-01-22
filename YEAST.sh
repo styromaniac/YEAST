@@ -103,18 +103,42 @@ search_revision() {
     echo "$found_revision"
 }
 
-# Function to download the AppImage with progress displayed through Zenity
 download_with_progress() {
     local url=$1
     local output_path=$2
 
-    # Use curl to download the file with progress information
-    # and pipe it to Zenity's progress dialog
-    curl -L "$url" -o "$output_path" --progress-bar 2>&1 | \
-    stdbuf -oL tr '\r' '\n' | \
-    stdbuf -oL awk 'BEGIN {ORS=" "} {if(NR % 2 == 1) print int($0)}' | \
-    zenity --progress --title="Downloading" --text="Downloading Yuzu EA revision EA-$revision..." --auto-close --width=400 --percentage=0
+    # Create a unique pipe for capturing wget output
+    local rand="$RANDOM $(date)"
+    local pipe="/tmp/pipe.$(echo "$rand" | md5sum | tr -d ' -')"
+    mkfifo "$pipe"
 
+    # Start wget download and process its output
+    wget -c "$url" -O "$output_path" 2>&1 | while read data; do
+        if [[ "$data" =~ ^Length: ]]; then
+            total_size=$(echo $data | grep "^Length:" | sed 's/.*\((.*)\).*/\1/' | tr -d '()')
+        fi
+        if [[ "$data" =~ [0-9]*% ]]; then
+            percent=$(echo $data | grep -o "[0-9]*%" | tr -d '%')
+            current=$(echo $data | grep "[0-9]*%" | sed 's/\([0-9BKMG.]\+\).*/\1/')
+            speed=$(echo $data | grep "[0-9]*%" | sed 's/.*\(% [0-9BKMG.]\+\).*/\1/' | tr -d ' %')
+            remain=$(echo $data | grep -o "[0-9A-Za-z]*$")
+            echo "$percent"
+            echo "#Downloading $url\n$current of $total_size ($percent%)\nSpeed : $speed/Sec\nEstimated time : $remain"
+        fi
+    done > "$pipe" &
+
+    wget_pid=$!
+
+    # Display Zenity progress bar
+    zenity --progress --auto-close --text="Connecting to $url\n\n\n" --width=350 --title="Downloading" < "$pipe"
+
+    # Clean up
+    if ps -p $wget_pid > /dev/null; then
+        kill $wget_pid
+    fi
+    rm -f "$pipe"
+
+    # Post download checks
     if [ ! -f "$output_path" ]; then
         display_message "Failed to download the AppImage. Check your internet connection or try again later."
         exit 1
