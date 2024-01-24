@@ -116,14 +116,21 @@ def search_revision(search_revision):
     if response.status_code == 200:
         data = response.json()
         tags = data['data']['repository']['refs']['edges']
+
+        # Convert search_revision to an integer for comparison
+        search_revision_number = int(search_revision)
+
         for edge in tags:
             tag_name = edge['node']['name']
-            if f"EA-{search_revision}" in tag_name:
+            tag_revision_number = int(tag_name.split('EA-')[-1])  # Extract the revision number
+            if tag_revision_number == search_revision_number:
                 return tag_name.split('EA-')[-1]
+            elif tag_revision_number < search_revision_number:
+                return "not_found"  # Stop the search as we've passed the target revision
     return "not_found"
 
 # Function to download with progress
-def download_with_progress(url, output_path):
+def download_with_progress(url, output_path, revision):
     response = requests.get(url, stream=True)
 
     if response.status_code != 200:
@@ -158,45 +165,126 @@ def download_with_progress(url, output_path):
 
     os.chmod(output_path, 0o755)
     with open(log_file, 'w') as file:
-        file.write(revision)
+        file.write(str(revision))
     display_message(f"Download complete. Yuzu EA revision EA-{revision} has been installed.")
 
 # Main loop
-search_done = False
-current_url = "https://api.github.com/repos/pineappleEA/pineapple-src/releases"
+def main():
+    current_url = "https://api.github.com/repos/pineappleEA/pineapple-src/releases"
+    search_done = False
 
-while True:
-    if not search_done:
-        requested_revision = subprocess.run(['zenity', '--entry', '--title', 'Search for a Specific Revision',
-                                             '--text', 'Enter a revision number to search for (leave blank to browse):'],
-                                             capture_output=True, text=True).stdout.strip()
-        if requested_revision:
-            found_revision = search_revision(requested_revision)
-            if found_revision != "not_found":
-                try:
-                    with open(log_file, 'r') as file:
-                        installed_tag = file.read().strip()
-                except FileNotFoundError:
-                    installed_tag = ""
-                if found_revision == installed_tag:
-                    display_message(f"Revision EA-{found_revision} is already installed.")
+    while True:
+        if not search_done:
+            requested_revision = subprocess.run(['zenity', '--entry', '--title', 'Search for a Specific Revision',
+                                                 '--text', 'Enter a revision number to search for (leave blank to browse):'],
+                                                 capture_output=True, text=True).stdout.strip()
+
+            if requested_revision:
+                found_revision = search_revision(requested_revision)
+                if found_revision != "not_found":
+                    try:
+                        with open(log_file, 'r') as file:
+                            installed_tag = file.read().strip()
+                    except FileNotFoundError:
+                        installed_tag = ""
+                    if found_revision == installed_tag:
+                        display_message(f"Revision EA-{found_revision} is already installed.")
+                        continue
+                    revision = found_revision
+                    break
+                else:
+                    display_message(f"Revision EA-{requested_revision} not found.")
                     continue
-                revision = found_revision
-                break
+            search_done = True
+
+        prev_url, next_url = get_pagination_urls(current_url)
+        available_tags = fetch_releases(current_url)
+
+        if not available_tags:
+            display_message("Failed to find available releases. Check your internet connection or GitHub token.")
+            continue
+
+        installed_tag = backup_tag = ""
+        try:
+            with open(log_file, 'r') as file:
+                installed_tag = file.read().strip()
+            with open(backup_log_file, 'r') as file:
+                backup_tag = file.read().strip()
+        except FileNotFoundError:
+            pass
+
+        menu_options = []
+        for tag in available_tags:
+            menu_entry = tag
+            if tag == installed_tag:
+                menu_entry += " (installed)"
+            if tag == backup_tag:
+                menu_entry += " (backed up)"
+            menu_options.append(menu_entry)
+
+        if prev_url:
+            menu_options.insert(0, "Previous Page")
+        if next_url:
+            menu_options.append("Next Page")
+
+        revision_selection = subprocess.run(['zenity', '--list', '--title', 'Select Yuzu EA Revision', '--column', 'Revisions', *menu_options,
+                                             '--height=400', '--width=400'], capture_output=True, text=True).stdout.strip()
+
+        if revision_selection == "Previous Page":
+            if prev_url:
+                current_url = prev_url
             else:
-                display_message(f"Revision EA-{requested_revision} not found.")
+                display_message("No previous page.")
+            continue
+        elif revision_selection == "Next Page":
+            if next_url:
+                current_url = next_url
+            else:
+                display_message("No next page.")
+            continue
+        elif revision_selection == "":
+            display_message("No revision selected.")
+            break
+        else:
+            revision = revision_selection.replace(" (installed)", "").replace(" (backed up)", "")
+            if revision == installed_tag:
+                display_message(f"Revision EA-{revision} is already installed.")
                 continue
-        search_done = True
+            break
 
-    # Fetch URLs for the current page
-    prev_url, next_url = get_pagination_urls(current_url)
-    available_tags = fetch_releases(current_url)
-
-    if not available_tags:
-        display_message("Failed to find available releases. Did you not enter an auth token?")
+    if revision in ["Next Page", "Previous Page"]:
+        display_message("Invalid selection.")
         exit(1)
 
-    installed_tag = backup_tag = ""
+    if os.path.isfile(appimage_path):
+        shutil.copy(appimage_path, temp_path)
+        if os.path.isfile(log_file):
+            shutil.copy(log_file, temp_log_file)
+
+    skip_download = False
+    if os.path.isfile(backup_log_file):
+        with open(backup_log_file, 'r') as file:
+            backup_revision = file.read().strip()
+        if revision == backup_revision:
+            if os.path.isfile(backup_path):
+                shutil.move(backup_path, appimage_path)
+            shutil.move(backup_log_file, log_file)
+            skip_download = True
+    else:
+        skip_download = False
+
+    if skip_download:
+        display_message(f"Revision {revision} has been installed from backup.")
+    else:
+        if not skip_download:
+            appimage_url = f"https://github.com/pineappleEA/pineapple-src/releases/download/EA-{revision}/Linux-Yuzu-EA-{revision}.AppImage"
+            download_with_progress(appimage_url, appimage_path, revision)
+
+    if os.path.isfile(temp_path):
+        shutil.move(temp_path, backup_path)
+        if os.path.isfile(temp_log_file):
+            shutil.move(temp_log_file, backup_log_file)
+
     if os.path.isfile(log_file):
         with open(log_file, 'r') as file:
             installed_tag = file.read().strip()
@@ -204,82 +292,7 @@ while True:
         with open(backup_log_file, 'r') as file:
             backup_tag = file.read().strip()
 
-    menu_options = []
-    for tag in available_tags:
-        menu_entry = tag
-        if tag == installed_tag:
-            menu_entry += " (installed)"
-        if tag == backup_tag:
-            menu_entry += " (backed up)"
-        menu_options.append(menu_entry)
+    subprocess.run(['zenity', '--info', '--text', 'Process completed. Press OK to exit.'])
 
-    if prev_url:
-        menu_options.insert(0, "Previous Page")
-    if next_url:
-        menu_options.append("Next Page")
-
-    revision_selection = subprocess.run(['zenity', '--list', '--title', 'Select Yuzu EA Revision', '--column', 'Revisions', *menu_options,
-                                         '--height=400', '--width=400'], capture_output=True, text=True).stdout.strip()
-
-    if revision_selection == "Previous Page":
-        if prev_url:
-            current_url = prev_url
-            continue  # Go to the next iteration of the loop to load the previous page
-        else:
-            display_message("No previous page.")
-    elif revision_selection == "Next Page":
-        if next_url:
-            current_url = next_url
-            continue  # Go to the next iteration of the loop to load the next page
-        else:
-            display_message("No next page.")
-    elif revision_selection == "":
-        display_message("No revision selected.")
-        exit(1)
-    else:
-        revision = revision_selection.replace(" (installed)", "").replace(" (backed up)", "")
-        if revision == installed_tag:
-            display_message(f"Revision EA-{revision} is already installed.")
-            continue
-        break
-
-if revision in ["Next Page", "Previous Page"]:
-    display_message("Invalid selection.")
-    exit(1)
-
-if os.path.isfile(appimage_path):
-    shutil.copy(appimage_path, temp_path)
-    if os.path.isfile(log_file):
-        shutil.copy(log_file, temp_log_file)
-
-skip_download = False
-if os.path.isfile(backup_log_file):
-    with open(backup_log_file, 'r') as file:
-        backup_revision = file.read().strip()
-    if revision == backup_revision:
-        if os.path.isfile(backup_path):
-            shutil.move(backup_path, appimage_path)
-        shutil.move(backup_log_file, log_file)
-        skip_download = True
-else:
-    skip_download = False
-
-if skip_download:
-    display_message(f"Revision {revision} has been installed from backup.")
-else:
-    appimage_url = f"https://github.com/pineappleEA/pineapple-src/releases/download/EA-{revision}/Linux-Yuzu-EA-{revision}.AppImage"
-    download_with_progress(appimage_url, appimage_path)
-
-if os.path.isfile(temp_path):
-    shutil.move(temp_path, backup_path)
-    if os.path.isfile(temp_log_file):
-        shutil.move(temp_log_file, backup_log_file)
-
-if os.path.isfile(log_file):
-    with open(log_file, 'r') as file:
-        installed_tag = file.read().strip()
-if os.path.isfile(backup_log_file):
-    with open(backup_log_file, 'r') as file:
-        backup_tag = file.read().strip()
-
-subprocess.run(['zenity', '--info', '--text', 'Process completed. Press OK to exit.'])
+if __name__ == "__main__":
+    main()
