@@ -24,6 +24,13 @@ temp_path = '/dev/shm/yuzu-ea-temp.AppImage'
 config_file = os.path.join(os.environ['HOME'], '.config/YEAST.conf')
 cache_dir = os.path.join(os.environ['HOME'], 'cache')
 
+# Define the path to the Applications folder
+applications_folder = os.path.join(os.environ['HOME'], 'Applications')
+
+# Check if the Applications folder exists, and if not, create it
+if not os.path.exists(applications_folder):
+    os.makedirs(applications_folder)
+
 def save_to_cache(url, data):
     if not os.path.exists(cache_dir):
         os.makedirs(cache_dir)
