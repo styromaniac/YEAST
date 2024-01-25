@@ -5,8 +5,10 @@ import os
 import subprocess
 import requests
 import json
+import time
 import shutil
 import tempfile
+import hashlib
 from urllib.parse import urlparse, parse_qs
 
 # Environment variable setup
@@ -20,6 +22,26 @@ appimage_path = os.path.join(os.environ['HOME'], 'Applications/yuzu-ea.AppImage'
 backup_path = os.path.join(os.environ['HOME'], 'Applications/yuzu-ea-backup.AppImage')
 temp_path = '/dev/shm/yuzu-ea-temp.AppImage'
 config_file = os.path.join(os.environ['HOME'], '.config/YEAST.conf')
+cache_dir = os.path.join(os.environ['HOME'], 'cache')
+
+def save_to_cache(url, data):
+    if not os.path.exists(cache_dir):
+        os.makedirs(cache_dir)
+    cache_file = os.path.join(cache_dir, f"{url_to_filename(url)}.json")
+    with open(cache_file, 'w') as file:
+        json.dump({'timestamp': time.time(), 'data': data}, file)
+
+def get_from_cache(url):
+    cache_file = os.path.join(cache_dir, f"{url_to_filename(url)}.json")
+    if os.path.exists(cache_file):
+        with open(cache_file, 'r') as file:
+            cache_content = json.load(file)
+        if time.time() - cache_content['timestamp'] < 14 * 24 * 60 * 60:
+            return cache_content['data']
+    return None
+
+def url_to_filename(url):
+    return hashlib.md5(url.encode('utf-8')).hexdigest()
 
 # Function to display message using Zenity
 def display_message(message):
@@ -73,6 +95,12 @@ def start_loader():
 
 # Function to fetch and parse releases using GitHub REST API with token
 def fetch_releases(url, loader_process):
+    # Check if data is available in cache
+    cached_data = get_from_cache(url)
+    if cached_data is not None:
+        return cached_data
+
+    # If not in cache, fetch data from API
     response = requests.get(url, headers={'Authorization': f'token {github_token}'})
     if response.status_code != 200:
         # Handle error if the request fails
@@ -82,7 +110,7 @@ def fetch_releases(url, loader_process):
         display_message("Failed to fetch releases. Please check your network connection or GitHub token.")
         return []
 
-    # Assume the response contains a list of tags, each tag being a release
+    # Parse the response
     tags = response.json()
     total_tags = len(tags)
 
@@ -101,6 +129,8 @@ def fetch_releases(url, loader_process):
     loader_process.stdin.close()
     loader_process.wait()
 
+    # Save the fetched data to cache
+    save_to_cache(url, releases)
     return releases
 
 # Function to get the URLs for previous and next pages from API response headers with token
