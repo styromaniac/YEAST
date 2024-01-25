@@ -43,6 +43,11 @@ def get_from_cache(url):
 def url_to_filename(url):
     return hashlib.md5(url.encode('utf-8')).hexdigest()
 
+def generate_cache_key(query, variables):
+    query_string = json.dumps({"query": query, "variables": variables}, sort_keys=True)
+    return hashlib.md5(query_string.encode('utf-8')).hexdigest()
+
+
 # Function to display message using Zenity
 def display_message(message):
     subprocess.run(['zenity', '--info', '--text', message, '--width=400'])
@@ -155,14 +160,42 @@ def convert_to_absolute_url(relative_url):
 
 def search_revision(search_revision):
     graphql_url = "https://api.github.com/graphql"
+    search_revision_number = int(search_revision)
+    end_cursor = None  # Start with no cursor
+    has_more_pages = True
+
+    while has_more_pages:
+        query, variables = build_graphql_query(end_cursor, search_revision_number)
+        cache_key = generate_cache_key(query, variables)
+        cached_data = get_from_cache(cache_key)
+
+        if cached_data:
+            result, end_cursor = process_cached_data(cached_data, search_revision_number)
+        else:
+            result, end_cursor = fetch_and_process_data(graphql_url, query, variables, cache_key, search_revision_number)
+
+        if result != "continue" or not end_cursor:
+            return result
+
+        # Check if there are more pages to process
+        has_more_pages = end_cursor is not None
+
+    # If the loop ends without finding the revision, it means the revision is too low and not found
+    return "not_found"
+
+def build_graphql_query(end_cursor, search_revision_number):
     query = """
-    query($repositoryOwner: String!, $repositoryName: String!) {
+    query($repositoryOwner: String!, $repositoryName: String!, $after: String) {
         repository(owner: $repositoryOwner, name: $repositoryName) {
-            refs(refPrefix: "refs/tags/", first: 100, orderBy: {field: TAG_COMMIT_DATE, direction: DESC}) {
+            refs(refPrefix: "refs/tags/", first: 100, after: $after, orderBy: {field: TAG_COMMIT_DATE, direction: DESC}) {
                 edges {
                     node {
                         name
                     }
+                }
+                pageInfo {
+                    endCursor
+                    hasNextPage
                 }
             }
         }
@@ -170,34 +203,96 @@ def search_revision(search_revision):
     """
     variables = {
         "repositoryOwner": "pineappleEA",
-        "repositoryName": "pineapple-src"
+        "repositoryName": "pineapple-src",
+        "after": end_cursor
     }
+    return query, variables
+
+def fetch_and_process_data(graphql_url, query, variables, cache_key, search_revision_number):
     headers = {"Authorization": f"Bearer {github_token}"}
     response = requests.post(graphql_url, json={'query': query, 'variables': variables}, headers=headers)
 
     if response.status_code == 200:
         data = response.json()
-        tags = data['data']['repository']['refs']['edges']
+        save_to_cache(cache_key, data)
+        return process_fetched_data(data, search_revision_number)
 
-        # Convert search_revision to an integer for comparison
-        search_revision_number = int(search_revision)
+    return "not_found", None
 
-        for edge in tags:
-            tag_name = edge['node']['name']
-            tag_revision_number = int(tag_name.split('EA-')[-1])  # Extract the revision number
-            if tag_revision_number == search_revision_number:
-                return tag_name.split('EA-')[-1]
-            elif tag_revision_number < search_revision_number:
-                return "not_found"  # Stop the search as we've passed the target revision
+def process_cached_data(cached_data, search_revision_number):
+    tags = cached_data['data']['repository']['refs']['edges']
+    pageInfo = cached_data['data']['repository']['refs']['pageInfo']
+    end_cursor = pageInfo['endCursor'] if pageInfo['hasNextPage'] else None
+
+    for edge in tags:
+        tag_name = edge['node']['name']
+        if 'EA-' in tag_name:
+            try:
+                tag_revision_number = int(tag_name.split('EA-')[-1])
+                if tag_revision_number == search_revision_number:
+                    return tag_name.split('EA-')[-1], None
+                elif tag_revision_number < search_revision_number:
+                    return "not_found", None
+            except ValueError:
+                # Skip if the tag name part is not an integer
+                continue
+
+    return "continue", end_cursor
+
+def process_fetched_data(fetched_data, search_revision_number):
+    tags = fetched_data['data']['repository']['refs']['edges']
+    pageInfo = fetched_data['data']['repository']['refs']['pageInfo']
+    end_cursor = pageInfo['endCursor'] if pageInfo['hasNextPage'] else None
+
+    for edge in tags:
+        tag_name = edge['node']['name']
+        if 'EA-' in tag_name:
+            try:
+                tag_revision_number = int(tag_name.split('EA-')[-1])
+                if tag_revision_number == search_revision_number:
+                    return tag_name.split('EA-')[-1], None
+                elif tag_revision_number < search_revision_number:
+                    return "not_found", None
+            except ValueError:
+                # Skip if the tag name part is not an integer
+                continue
+
+    return "continue", end_cursor
+
+def find_revision_in_tags(tags, search_revision):
+    search_revision_number = int(search_revision)
+    for edge in tags:
+        tag_name = edge['node']['name']
+        tag_revision_number = int(tag_name.split('EA-')[-1])
+        if tag_revision_number == search_revision_number:
+            return tag_name.split('EA-')[-1]
+        elif tag_revision_number < search_revision_number:
+            return "not_found"
     return "not_found"
 
-# Function to download with progress
+def silent_ping(host, count=1):
+    try:
+        # For Unix/Linux
+        subprocess.run(["ping", "-c", str(count), host], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except FileNotFoundError:
+        # For Windows
+        subprocess.run(["ping", "-n", str(count), host], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
 def download_with_progress(url, output_path, revision):
     response = requests.get(url, stream=True)
 
     if response.status_code != 200:
-        display_message("Failed to download the AppImage. Check your internet connection or try again later.")
-        exit(1)
+        # Ping github.com to check connectivity, suppress output
+        silent_ping("github.com")
+
+        if response.status_code == 404:
+            display_message("Failed to download the AppImage. The revision might not be found.")
+        else:
+            display_message("Failed to download the AppImage. Check your internet connection or try again later.")
+
+        # Call main function again instead of exiting
+        main()
+        return
 
     total_size = int(response.headers.get('content-length', 0))
     chunk_size = 1024
@@ -310,17 +405,13 @@ def main():
             continue
         elif revision_selection == "":
             display_message("No revision selected.")
-            break
+            return
         else:
             revision = revision_selection.replace(" (installed)", "").replace(" (backed up)", "")
             if revision == installed_tag:
                 display_message(f"Revision EA-{revision} is already installed.")
                 continue
             break
-
-    if revision is None or revision in ["Next Page", "Previous Page"]:
-        display_message("Invalid selection or no revision selected.")
-        return
 
     if os.path.isfile(appimage_path):
         shutil.copy(appimage_path, temp_path)
@@ -357,8 +448,6 @@ def main():
     if os.path.isfile(backup_log_file):
         with open(backup_log_file, 'r') as file:
             backup_tag = file.read().strip()
-
-    subprocess.run(['zenity', '--info', '--text', 'Process completed. Press OK to exit.'])
 
 if __name__ == "__main__":
     main()
