@@ -66,10 +66,42 @@ def read_github_token():
 # Assign the token to a variable
 github_token = read_github_token()
 
+def start_loader():
+    loader_process = subprocess.Popen(['zenity', '--progress', '--title', 'Searching', '--text', 'Searching for revisions...', '--auto-close', '--no-cancel'],
+                                      stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+    return loader_process
+
 # Function to fetch and parse releases using GitHub REST API with token
-def fetch_releases(url):
+def fetch_releases(url, loader_process):
     response = requests.get(url, headers={'Authorization': f'token {github_token}'})
-    return [tag['tag_name'].split('EA-')[-1] for tag in response.json()]
+    if response.status_code != 200:
+        # Handle error if the request fails
+        loader_process.stdin.write("100\n".encode())
+        loader_process.stdin.close()
+        loader_process.terminate()
+        display_message("Failed to fetch releases. Please check your network connection or GitHub token.")
+        return []
+
+    # Assume the response contains a list of tags, each tag being a release
+    tags = response.json()
+    total_tags = len(tags)
+
+    releases = []
+    for i, tag in enumerate(tags):
+        release_info = tag['tag_name'].split('EA-')[-1]
+        releases.append(release_info)
+
+        # Calculate progress and update the loader bar
+        progress = int((i + 1) / total_tags * 100)
+        loader_process.stdin.write(f"{progress}\n".encode())
+        loader_process.stdin.flush()
+
+    # Close the loader bar when done
+    loader_process.stdin.write("100\n".encode())
+    loader_process.stdin.close()
+    loader_process.wait()
+
+    return releases
 
 # Function to get the URLs for previous and next pages from API response headers with token
 def get_pagination_urls(url):
@@ -170,8 +202,11 @@ def download_with_progress(url, output_path, revision):
 
 # Main loop
 def main():
+    global current_url, github_token
+
     current_url = "https://api.github.com/repos/pineappleEA/pineapple-src/releases"
     search_done = False
+    revision = None  # Initialize revision to None
 
     while True:
         if not search_done:
@@ -197,8 +232,9 @@ def main():
                     continue
             search_done = True
 
+        loader_process = start_loader()
         prev_url, next_url = get_pagination_urls(current_url)
-        available_tags = fetch_releases(current_url)
+        available_tags = fetch_releases(current_url, loader_process)
 
         if not available_tags:
             display_message("Failed to find available releases. Check your internet connection or GitHub token.")
@@ -252,9 +288,9 @@ def main():
                 continue
             break
 
-    if revision in ["Next Page", "Previous Page"]:
-        display_message("Invalid selection.")
-        exit(1)
+    if revision is None or revision in ["Next Page", "Previous Page"]:
+        display_message("Invalid selection or no revision selected.")
+        return
 
     if os.path.isfile(appimage_path):
         shutil.copy(appimage_path, temp_path)
