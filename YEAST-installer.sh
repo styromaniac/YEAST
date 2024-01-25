@@ -10,7 +10,7 @@ if [ -z "$XDG_CONFIG_HOME" ]; then
 fi
 
 # Script config
-script_name="YEAST.sh"
+script_name="YEAST.py"
 icon_name="YEAST-logo.png"
 
 # Install directories
