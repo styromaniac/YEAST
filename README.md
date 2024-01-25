@@ -18,7 +18,7 @@ A robust, code-readable yuzu early access installer/updater for Steam on SteamOS
 
 6. Append to the end of the LAUNCH OPTIONS string:
 ```
- --command $HOME/Applications/YEAST.sh
+ --command $HOME/Applications/YEAST.py
 ```
 
 Now you can apply the custom artwork using the [Decky Loader](https://decky.xyz/) plugin SteamGridDB (only on SteamOS 3+) or by right-clicking where the artwork is absent.
