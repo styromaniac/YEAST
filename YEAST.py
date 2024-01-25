@@ -14,19 +14,19 @@ from urllib.parse import urlparse, parse_qs
 # Environment variable setup
 os.environ.pop('LD_PRELOAD', None)
 
-# File paths
-log_file = os.path.join(os.environ['HOME'], 'Applications/yuzu-ea-revision.log')
-backup_log_file = os.path.join(os.environ['HOME'], 'Applications/yuzu-ea-backup-revision.log')
-temp_log_file = '/dev/shm/yuzu-ea-temp-revision.log'
-appimage_path = os.path.join(os.environ['HOME'], 'Applications/yuzu-ea.AppImage')
-backup_path = os.path.join(os.environ['HOME'], 'Applications/yuzu-ea-backup.AppImage')
-temp_path = '/dev/shm/yuzu-ea-temp.AppImage'
-config_file = os.path.join(os.environ['HOME'], '.config/YEAST.conf')
-cache_dir = os.path.join(os.environ['HOME'], 'cache')
-
-# Define the path to the Applications folder
 applications_folder = os.path.join(os.environ['HOME'], 'Applications')
 
+log_file = os.path.join(applications_folder, 'yuzu-ea-revision.log')
+backup_log_file = os.path.join(applications_folder, 'yuzu-ea-backup-revision.log')
+
+appimage_path = os.path.join(applications_folder, 'yuzu-ea.AppImage') 
+backup_path = os.path.join(applications_folder, 'yuzu-ea-backup.AppImage')
+
+temp_log_file = '/dev/shm/yuzu-ea-temp-revision.log'
+temp_path = '/dev/shm/yuzu-ea-temp.AppImage'
+
+config_file = os.path.join(os.environ['HOME'], '.config/YEAST.conf')
+cache_dir = os.path.join(os.environ['HOME'], 'cache')
 # Check if the Applications folder exists, and if not, create it
 if not os.path.exists(applications_folder):
     os.makedirs(applications_folder)
