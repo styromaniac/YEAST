@@ -99,3 +99,57 @@ Finally, use `pip` to install the required Python modules:
 ```
 pip install requests PyGObject
 ```
+To build a binary for YEAST.py on Linux, you can use a tool like `PyInstaller` which freezes Python applications into stand-alone executables. This process involves a few steps: installing PyInstaller, preparing your script, and then using PyInstaller to create the binary. Here's a step-by-step guide:
+
+### 1. Install PyInstaller
+First, you need to install PyInstaller. It's recommended to do this in a virtual environment to avoid conflicts with system packages.
+
+```bash
+# Create a virtual environment (optional but recommended)
+python3 -m venv yeast_env
+source yeast_env/bin/activate
+
+# Install PyInstaller
+pip install pyinstaller
+```
+
+### 2. Prepare Your Script
+Make sure the script `YEAST.py` is ready and tested. All dependencies should be correctly imported in the script.
+
+### 3. Build the Binary
+Navigate to the directory where `YEAST.py` is located and run PyInstaller:
+
+```bash
+cd /path/to/your/script
+pyinstaller --onefile YEAST.py
+```
+
+The `--onefile` option tells PyInstaller to pack everything into a single executable file. After the process completes, you'll find the binary in the `dist` directory.
+
+### 4. Test the Binary
+It's important to test the binary to make sure it runs correctly:
+
+```bash
+./dist/YEAST
+```
+
+### Notes:
+- The binary built with PyInstaller is specific to the OS and architecture you build it on. If you build it on Ubuntu, it's meant for Ubuntu systems, and similarly for other distributions.
+- If your application depends on non-Python files (like images, data files, etc.), you need to tell PyInstaller to include these files. Check PyInstaller's documentation for more on this.
+- Building a binary does not always guarantee the same performance or behavior as running the script directly with Python. Be sure to thoroughly test the binary on the target system.
+
+### Optional: Creating a Desktop Entry
+If you want to integrate your app with the Linux desktop environments, you can create a `.desktop` file:
+
+```ini
+[Desktop Entry]
+Name=YEAST
+Exec=/path/to/dist/YEAST
+Icon=/path/to/YEAST-icon.png
+Type=Application
+Categories=Utility;
+```
+
+Replace `/path/to/dist/YEAST` with the actual path to the executable and `/path/to/icon.png` with the path to an icon of your choice. This file should be placed in `~/.local/share/applications/` or `/usr/share/applications/` for system-wide availability.
+
+By following these steps, you should be able to create a binary for YEAST that can be distributed and run on Linux systems.
