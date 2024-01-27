@@ -54,6 +54,8 @@ Note:
 - CentOS 8 and newer versions use `dnf` (Dandified YUM) as the default package manager, which is more or less similar to `yum`.
 - In most cases, the command `python3-pip` will install `pip` for Python 3.
 - Always ensure your system's package index is up-to-date (`update`, `refresh`, `--sync`) before installing new packages.
+
+## Install Python3 modules
 ```
 pip install requests PyGObject
 ```
