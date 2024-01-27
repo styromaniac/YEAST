@@ -166,7 +166,7 @@ It's important to test the binary to make sure it runs correctly:
 ```
 
 ### Notes:
-- YEAST-installer.sh already exists to install YEAST.py and is recommended for simple installation and consistency in compatibility, performance and stability.
+- YEAST-installer.sh already exists to install YEAST.py and is recommended for simple installation and consistency in behavior, compatibility, performance and stability.
 - The binary built with PyInstaller is specific to the OS and architecture you build it on. If you build it on Ubuntu, it's meant for Ubuntu systems, and similarly for other distributions.
 - If your distribution of YEAST depends on non-Python files (like images, data files, etc.), you need to tell PyInstaller to include these files. Check PyInstaller's documentation for more on this.
 - Building a binary does not always guarantee the same performance or behavior as running the script directly with Python. Be sure to thoroughly test the binary on the target system.
