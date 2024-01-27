@@ -99,8 +99,6 @@ Finally, use `pip` to install the required Python modules:
 ```
 pip install requests PyGObject
 ```
-Certainly! Including instructions for unzipping `YEAST-main.zip` is important for users who may download the script as a ZIP file. Here's an updated section that includes steps for unzipping the file and making the `YEAST-installer.sh` script executable:
-
 ---
 
 ## Extracting and Running the Installer Script
@@ -133,13 +131,7 @@ If you have downloaded `YEAST-main.zip`, you will need to extract it and then ma
     ```
 
 This process involves changing the script's permissions to allow it to be run as a program on your Linux system. The `chmod +x` command is used for this purpose.
-
 ---
-
-These instructions provide a clear, step-by-step guide for users to extract the ZIP file and run the installer script, ensuring a smooth setup process.
-## Building a Binary
-To build a binary for YEAST.py on Linux, you can use a tool like `PyInstaller` which freezes Python applications into stand-alone executables. This process involves a few steps: installing PyInstaller, preparing your script, and then using PyInstaller to create the binary. Here's a step-by-step guide:
-
 ### 1. Install PyInstaller
 First, you need to install PyInstaller. It's recommended to do this in a virtual environment to avoid conflicts with system packages.
 
