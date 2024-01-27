@@ -132,6 +132,7 @@ If you have downloaded `YEAST-main.zip`, you will need to extract it and then ma
 
 This process involves changing the script's permissions to allow it to be run as a program on your Linux system. The `chmod +x` command is used for this purpose.
 ---
+## Compiling YEAST.py for Your Distribution
 ### 1. Install PyInstaller
 First, you need to install PyInstaller. It's recommended to do this in a virtual environment to avoid conflicts with system packages.
 
