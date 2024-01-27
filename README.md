@@ -137,7 +137,7 @@ This process involves changing the script's permissions to allow it to be run as
 First, you need to install PyInstaller. It's recommended to do this in a virtual environment to avoid conflicts with system packages.
 
 ```bash
-# Create a virtual environment (optional but recommended)
+# Create a virtual environment (optional but )
 python3 -m venv yeast_env
 source yeast_env/bin/activate
 
@@ -166,7 +166,7 @@ It's important to test the binary to make sure it runs correctly:
 ```
 
 ### Notes:
-- YEAST-installer.sh already exists to install YEAST.py and is recommended for simple installation.
+- YEAST-installer.sh already exists to install YEAST.py and is recommended for simple installation and consistency in compatibility, performance and stability.
 - The binary built with PyInstaller is specific to the OS and architecture you build it on. If you build it on Ubuntu, it's meant for Ubuntu systems, and similarly for other distributions.
 - If YEASTlication depends on non-Python files (like images, data files, etc.), you need to tell PyInstaller to include these files. Check PyInstaller's documentation for more on this.
 - Building a binary does not always guarantee the same performance or behavior as running the script directly with Python. Be sure to thoroughly test the binary on the target system.
