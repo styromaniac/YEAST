@@ -45,6 +45,12 @@ sudo emerge --sync
 sudo emerge dev-python/pygobject:3 x11-libs/gtk+:3
 ```
 
+### NixOS (nix)
+```bash
+sudo nix-channel --update
+nix-env -iA nixos.python3 nixos.gtk3 nixos.python3Packages.gobject-introspection nixos.python3Packages.pygobject3 nixos.python3Packages.requests
+```
+
 ## Install pip
 Next, install `pip`, the Python package manager, on your distribution:
 
@@ -86,6 +92,11 @@ sudo dnf install python3-pip
 ```bash
 sudo emerge --sync
 sudo emerge dev-python/pip
+```
+
+### NixOS (nix)
+```bash
+nix-env -iA nixos.python3Packages.pip
 ```
 
 Note:
