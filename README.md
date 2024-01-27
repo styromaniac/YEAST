@@ -158,7 +158,13 @@ pyinstaller --onefile YEAST.py
 
 The `--onefile` option tells PyInstaller to pack everything into a single executable file. After the process completes, you'll find the binary in the `dist` directory.
 
-### 4. Test the Binary
+### 4. Make the Binary Executable
+
+```
+chmod +x YEAST
+```
+
+### 5. Test the Binary
 It's important to test the binary to make sure it runs correctly:
 
 ```bash
