@@ -99,6 +99,7 @@ Finally, use `pip` to install the required Python modules:
 ```
 pip install requests PyGObject
 ```
+## Building a Binary
 To build a binary for YEAST.py on Linux, you can use a tool like `PyInstaller` which freezes Python applications into stand-alone executables. This process involves a few steps: installing PyInstaller, preparing your script, and then using PyInstaller to create the binary. Here's a step-by-step guide:
 
 ### 1. Install PyInstaller
