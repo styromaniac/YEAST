@@ -59,7 +59,7 @@ Note:
 ```
 pip install requests PyGObject
 ```
-Here's how you can install the required packages on different Linux distributions using their respective package managers:
+## Here's how you can install the required packages on different Linux distributions using their respective package managers:
 
 ### Debian/Ubuntu (apt)
 ```bash
