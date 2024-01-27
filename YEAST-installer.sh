@@ -11,7 +11,7 @@ fi
 
 # Script config
 script_name="YEAST.py"
-icon_name="YEAST-logo.png"
+icon_name="YEAST-icon.png"
 
 # Install directories
 install_dir="$XDG_CONFIG_HOME"
