@@ -99,6 +99,44 @@ Finally, use `pip` to install the required Python modules:
 ```
 pip install requests PyGObject
 ```
+Certainly! Including instructions for unzipping `YEAST-main.zip` is important for users who may download the script as a ZIP file. Here's an updated section that includes steps for unzipping the file and making the `YEAST-installer.sh` script executable:
+
+---
+
+## Extracting and Running the Installer Script
+
+If you have downloaded `YEAST-main.zip`, you will need to extract it and then make the installer script executable to run it on your system. Follow these steps:
+
+1. **Navigate to the Download Location**: Open a terminal and navigate to the directory where `YEAST-main.zip` is located. For example, if it's in the `Downloads` folder, use:
+    ```bash
+    cd ~/Downloads
+    ```
+
+2. **Unzip the Archive**: Extract the contents of the ZIP file with the following command:
+    ```bash
+    unzip YEAST-main.zip
+    ```
+
+3. **Navigate to the Extracted Folder**: Change directory to the extracted folder. It's typically named after the ZIP file:
+    ```bash
+    cd YEAST-main
+    ```
+
+4. **Make the Installer Script Executable**: Run the following command to make `YEAST-installer.sh` executable:
+    ```bash
+    chmod +x YEAST-installer.sh
+    ```
+
+5. **Run the Installer**: Now, you can execute the script with:
+    ```bash
+    ./YEAST-installer.sh
+    ```
+
+This process involves changing the script's permissions to allow it to be run as a program on your Linux system. The `chmod +x` command is used for this purpose.
+
+---
+
+These instructions provide a clear, step-by-step guide for users to extract the ZIP file and run the installer script, ensuring a smooth setup process.
 ## Building a Binary
 To build a binary for YEAST.py on Linux, you can use a tool like `PyInstaller` which freezes Python applications into stand-alone executables. This process involves a few steps: installing PyInstaller, preparing your script, and then using PyInstaller to create the binary. Here's a step-by-step guide:
 
