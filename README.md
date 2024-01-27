@@ -151,6 +151,6 @@ Type=Application
 Categories=Utility;
 ```
 
-Replace `/path/to/dist/YEAST` with the actual path to the executable and `/path/to/icon.png` with the path to an icon of your choice. This file should be placed in `~/.local/share/applications/` or `/usr/share/applications/` for system-wide availability.
+Replace `/path/to/dist/YEAST` with the actual path to the executable and `/path/to/YEAST-icon.png` with the path to an icon of your choice. This file should be placed in `~/.local/share/applications/` or `/usr/share/applications/` for system-wide availability.
 
 By following these steps, you should be able to create a binary for YEAST that can be distributed and run on Linux systems.
