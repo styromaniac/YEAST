@@ -2,7 +2,7 @@
 
 # yuzu early access software tracker (YEAST)
 
-A robust, code-readable yuzu early access installer/updater for Steam on SteamOS and other Linux distros using [pineappleEA's pineapple-src releases](https://github.com/pineappleEA/pineapple-src/releases). This app complements (instead of competes with) EmuDeck. The purpose of this script is to save the user's time by being more easily accessible, convenient, logical, and informative. It is usable through Gaming Mode In SteamOS 3, Bazzite, ChimeraOS, HoloISO, and Nobara Linux Steam Deck Edition.
+A robust, code-readable yuzu early access installer/updater for Steam on SteamOS and other Linux distros using [pineappleEA's pineapple-src releases](https://github.com/pineappleEA/pineapple-src/releases). It's important to note that these builds are unofficial and, like YEAST, are not associated with the yuzu-emu team. This app complements (instead of competes with) EmuDeck. The purpose of this script is to save the user's time by being more easily accessible, convenient, logical, and informative. It is usable through Gaming Mode In SteamOS 3, Bazzite, ChimeraOS, HoloISO, and Nobara Linux Steam Deck Edition.
 
 YEAST will not redownload the same revision of yuzu-ea.AppImage that's already installed. The prior installed revision will be backed up and will be sourced from its backup file instead of redownloaded if it's reinstalled, saving bandwidth.
 
