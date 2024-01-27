@@ -10,6 +10,10 @@ import shutil
 import tempfile
 import hashlib
 from urllib.parse import urlparse, parse_qs
+import gi
+
+gi.require_version("Gtk", "3.0")
+from gi.repository import Gtk, GLib
 
 # Environment variable setup
 os.environ.pop('LD_PRELOAD', None)
@@ -22,14 +26,23 @@ backup_log_file = os.path.join(applications_folder, 'yuzu-ea-backup-revision.log
 appimage_path = os.path.join(applications_folder, 'yuzu-ea.AppImage') 
 backup_path = os.path.join(applications_folder, 'yuzu-ea-backup.AppImage')
 
-temp_log_file = '/dev/shm/yuzu-ea-temp-revision.log'
-temp_path = '/dev/shm/yuzu-ea-temp.AppImage'
+temp_log_file = ('/dev/shm/yuzu-ea-temp-revision.log')
+temp_path = ('/dev/shm/yuzu-ea-temp.AppImage')
 
 config_file = os.path.join(os.environ['HOME'], '.config/YEAST.conf')
 cache_dir = os.path.join(os.environ['HOME'], 'cache')
+
 # Check if the Applications folder exists, and if not, create it
 if not os.path.exists(applications_folder):
     os.makedirs(applications_folder)
+
+def on_treeview_row_activated(treeview, path, column):
+    model = treeview.get_model()
+    iter = model.get_iter(path)
+    selected_row_value = model.get_value(iter, 0)
+    # Now, you can use `selected_row_value` which contains the text of the selected row
+    # For example, you can print it, store it, or use it in some other part of your program
+    print("Selected:", selected_row_value)
 
 def save_to_cache(url, data):
     if not os.path.exists(cache_dir):
@@ -43,7 +56,7 @@ def get_from_cache(url):
     if os.path.exists(cache_file):
         with open(cache_file, 'r') as file:
             cache_content = json.load(file)
-        if time.time() - cache_content['timestamp'] < 14 * 24 * 60 * 60:
+        if time.time() - cache_content['timestamp'] < 1 * 6 * 60 * 60:
             return cache_content['data']
     return None
 
@@ -54,16 +67,36 @@ def generate_cache_key(query, variables):
     query_string = json.dumps({"query": query, "variables": variables}, sort_keys=True)
     return hashlib.md5(query_string.encode('utf-8')).hexdigest()
 
-
-# Function to display message using Zenity
+# Function to display message using GTK dialog
 def display_message(message):
-    subprocess.run(['zenity', '--info', '--text', message, '--width=400'])
+    dialog = Gtk.MessageDialog(
+        transient_for=None,
+        flags=0,
+        message_type=Gtk.MessageType.INFO,
+        buttons=Gtk.ButtonsType.OK,
+        text=message,
+    )
+    dialog.run()
+    dialog.destroy()
 
-# Function to prompt for GitHub token using Zenity
+# Function to prompt for GitHub token using GTK dialog
 def prompt_for_github_token():
-    return subprocess.run(['zenity', '--entry', '--title', 'GitHub Token',
-                           '--text', 'Enter your GitHub personal access token:',
-                           '--hide-text'], capture_output=True, text=True).stdout.strip()
+    dialog = Gtk.MessageDialog(
+        transient_for=None,
+        flags=0,
+        message_type=Gtk.MessageType.QUESTION,
+        buttons=Gtk.ButtonsType.OK_CANCEL,
+        text="Enter your GitHub personal access token:"
+    )
+    entry = Gtk.Entry()
+    entry.set_visibility(False)
+    entry.set_invisible_char("*")
+    entry.show()
+    dialog.vbox.pack_end(entry, True, True, 0)
+    response = dialog.run()
+    token = entry.get_text() if response == Gtk.ResponseType.OK else ""
+    dialog.destroy()
+    return token
 
 # Function to validate GitHub Access Token
 def validate_github_token(token):
@@ -100,13 +133,26 @@ def read_github_token():
 # Assign the token to a variable
 github_token = read_github_token()
 
+# Function to start a loader dialog using GTK
 def start_loader():
-    loader_process = subprocess.Popen(['zenity', '--progress', '--title', 'Searching', '--text', 'Searching for revisions...', '--auto-close', '--no-cancel'],
-                                      stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-    return loader_process
+    dialog = Gtk.MessageDialog(
+        transient_for=None,
+        flags=0,
+        message_type=Gtk.MessageType.INFO,
+        buttons=Gtk.ButtonsType.NONE,
+        text="Searching for revisions..."
+    )
+    dialog.set_title("Searching")
+    dialog.set_default_size(300, 100)
+
+    context = GLib.MainContext.default()
+    while GLib.MainContext.iteration(context, False):
+        pass
+
+    return dialog
 
 # Function to fetch and parse releases using GitHub REST API with token
-def fetch_releases(url, loader_process):
+def fetch_releases(url, dialog):
     # Check if data is available in cache
     cached_data = get_from_cache(url)
     if cached_data is not None:
@@ -116,9 +162,7 @@ def fetch_releases(url, loader_process):
     response = requests.get(url, headers={'Authorization': f'token {github_token}'})
     if response.status_code != 200:
         # Handle error if the request fails
-        loader_process.stdin.write("100\n".encode())
-        loader_process.stdin.close()
-        loader_process.terminate()
+        dialog.destroy()
         display_message("Failed to fetch releases. Please check your network connection or GitHub token.")
         return []
 
@@ -131,16 +175,7 @@ def fetch_releases(url, loader_process):
         release_info = tag['tag_name'].split('EA-')[-1]
         releases.append(release_info)
 
-        # Calculate progress and update the loader bar
-        progress = int((i + 1) / total_tags * 100)
-        loader_process.stdin.write(f"{progress}\n".encode())
-        loader_process.stdin.flush()
-
-    # Close the loader bar when done
-    loader_process.stdin.write("100\n".encode())
-    loader_process.stdin.close()
-    loader_process.wait()
-
+    dialog.destroy()
     # Save the fetched data to cache
     save_to_cache(url, releases)
     return releases
@@ -342,9 +377,19 @@ def main():
 
     while True:
         if not search_done:
-            requested_revision = subprocess.run(['zenity', '--entry', '--title', 'Search for a Specific Revision',
-                                                 '--text', 'Enter a revision number to search for (leave blank to browse):'],
-                                                 capture_output=True, text=True).stdout.strip()
+            dialog = Gtk.MessageDialog(
+                transient_for=None,
+                flags=0,
+                message_type=Gtk.MessageType.QUESTION,
+                buttons=Gtk.ButtonsType.OK_CANCEL,
+                text="Enter a revision number to search for (leave blank to browse):"
+            )
+            entry = Gtk.Entry()
+            entry.show()
+            dialog.vbox.pack_end(entry, True, True, 0)
+            response = dialog.run()
+            requested_revision = entry.get_text() if response == Gtk.ResponseType.OK else None
+            dialog.destroy()
 
             if requested_revision:
                 found_revision = search_revision(requested_revision)
@@ -364,14 +409,17 @@ def main():
                     continue
             search_done = True
 
-        loader_process = start_loader()
+        # Fetching the releases
+        loader_dialog = start_loader()
         prev_url, next_url = get_pagination_urls(current_url)
-        available_tags = fetch_releases(current_url, loader_process)
+        available_tags = fetch_releases(current_url, loader_dialog)
 
+        # Checking if releases are available
         if not available_tags:
             display_message("Failed to find available releases. Check your internet connection or GitHub token.")
             continue
 
+        # Preparing the menu options
         installed_tag = backup_tag = ""
         try:
             with open(log_file, 'r') as file:
@@ -390,35 +438,70 @@ def main():
                 menu_entry += " (backed up)"
             menu_options.append(menu_entry)
 
+        # Adding pagination options
         if prev_url:
             menu_options.insert(0, "Previous Page")
         if next_url:
             menu_options.append("Next Page")
 
-        revision_selection = subprocess.run(['zenity', '--list', '--title', 'Select Yuzu EA Revision', '--column', 'Revisions', *menu_options,
-                                             '--height=400', '--width=400'], capture_output=True, text=True).stdout.strip()
+        # Creating the menu dialog
+        liststore = Gtk.ListStore(str)
+        for option in menu_options:
+            liststore.append([option])
 
-        if revision_selection == "Previous Page":
-            if prev_url:
-                current_url = prev_url
-            else:
-                display_message("No previous page.")
-            continue
-        elif revision_selection == "Next Page":
-            if next_url:
-                current_url = next_url
-            else:
-                display_message("No next page.")
-            continue
-        elif revision_selection == "":
-            display_message("No revision selected.")
+        treeview = Gtk.TreeView(model=liststore)
+        renderer = Gtk.CellRendererText()
+        column = Gtk.TreeViewColumn("Revisions", renderer, text=0)
+        treeview.append_column(column)
+        treeview.connect("row-activated", on_treeview_row_activated)
+
+        scrolled_window = Gtk.ScrolledWindow()
+        scrolled_window.set_hexpand(True)
+        scrolled_window.set_vexpand(True)
+        scrolled_window.add(treeview)
+
+        dialog = Gtk.Dialog(title="Select Yuzu EA Revision", transient_for=None, flags=0)
+        dialog.add_buttons(Gtk.STOCK_OK, Gtk.ResponseType.OK, Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL)
+        dialog.vbox.pack_start(scrolled_window, True, True, 0)
+        dialog.set_default_size(400, 400)
+        dialog.show_all()
+
+        response = dialog.run()
+
+        # Handling dialog response
+        if response == Gtk.ResponseType.CANCEL:
+            dialog.destroy()
             return
-        else:
-            revision = revision_selection.replace(" (installed)", "").replace(" (backed up)", "")
-            if revision == installed_tag:
-                display_message(f"Revision EA-{revision} is already installed.")
+        elif response == Gtk.ResponseType.OK:
+            selected_row = treeview.get_selection().get_selected()[1]
+            if selected_row is not None:
+                revision_selection = liststore[selected_row][0]
+                dialog.destroy()
+
+                if revision_selection == "Previous Page":
+                    if prev_url:
+                        current_url = prev_url
+                        continue  # Go back to the start of the loop to reload data
+                    else:
+                        display_message("No previous page.")
+                elif revision_selection == "Next Page":
+                    if next_url:
+                        current_url = next_url
+                        continue  # Go back to the start of the loop to reload data
+                    else:
+                        display_message("No next page.")
+                elif revision_selection == "":
+                    display_message("No revision selected.")
+                    return
+                else:
+                    revision = revision_selection.replace(" (installed)", "").replace(" (backed up)", "")
+                    if revision == installed_tag:
+                        display_message(f"Revision EA-{revision} is already installed.")
+                        continue
+                    break
+            else:
+                dialog.destroy()
                 continue
-            break
 
     if os.path.isfile(appimage_path):
         shutil.copy(appimage_path, temp_path)
