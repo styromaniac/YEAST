@@ -11,7 +11,6 @@ import tempfile
 import hashlib
 from urllib.parse import urlparse, parse_qs
 import gi
-
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib
 
@@ -320,6 +319,15 @@ def silent_ping(host, count=1):
         # For Windows
         subprocess.run(["ping", "-n", str(count), host], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
+
+def create_progress_dialog(title="Downloading", text="Starting download..."):
+    dialog = Gtk.Dialog(title)
+    dialog.set_default_size(300, 50)
+    progress_bar = Gtk.ProgressBar(show_text=True)
+    dialog.vbox.pack_start(progress_bar, True, True, 0)
+    dialog.show_all()
+    return dialog, progress_bar
+
 def download_with_progress(url, output_path, revision):
     response = requests.get(url, stream=True)
 
@@ -340,27 +348,29 @@ def download_with_progress(url, output_path, revision):
     chunk_size = 1024
     downloaded_size = 0
 
-    # Create a pipe for sending progress to Zenity
-    progress_pipe = subprocess.Popen(['zenity', '--progress', '--auto-close',
-                                      '--title', 'Downloading', '--text', 'Starting download...'],
-                                      stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+    dialog, progress_bar = create_progress_dialog()
 
     with open(output_path, 'wb') as file:
-        for data in response.iter_content(chunk_size=chunk_size):
-            file.write(data)
-            downloaded_size += len(data)
-            progress = int((downloaded_size / total_size) * 100)
-            # Update Zenity progress bar
-            progress_pipe.stdin.write(f"{progress}\n".encode())
-            progress_pipe.stdin.flush()
+        try:
+            for data in response.iter_content(chunk_size=chunk_size):
+                file.write(data)
+                downloaded_size += len(data)
+                progress = downloaded_size / total_size
+                GLib.idle_add(progress_bar.set_fraction, progress)
+                GLib.idle_add(progress_bar.set_text, f"{int(progress * 100)}%")
 
-    progress_pipe.stdin.close()
-    progress_pipe.wait()
+                while Gtk.events_pending():
+                    Gtk.main_iteration()
 
-    if progress_pipe.returncode != 0:
-        # Handle the case where the download was interrupted or Zenity was closed
-        display_message("Download interrupted or cancelled.")
-        exit(1)
+                # Check if dialog was closed and stop download if so
+                if not dialog.get_visible():
+                    raise Exception("Download cancelled by user.")
+        except Exception as e:
+            dialog.destroy()
+            display_message(str(e))
+            return
+
+    dialog.destroy()
 
     os.chmod(output_path, 0o755)
     with open(log_file, 'w') as file:
