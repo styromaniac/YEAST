@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+import threading
+from threading import Lock, Thread
+from concurrent.futures import ThreadPoolExecutor
 import sys
 import os
 import subprocess
@@ -12,7 +15,7 @@ import hashlib
 from urllib.parse import urlparse, parse_qs
 import gi
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk, GLib
+from gi.repository import Gtk, GLib, Gdk
 
 # Environment variable setup
 os.environ.pop('LD_PRELOAD', None)
@@ -31,6 +34,14 @@ temp_path = ('/dev/shm/yuzu-ea-temp.AppImage')
 config_file = os.path.join(os.environ['HOME'], '.config/YEAST.conf')
 cache_dir = os.path.join(os.environ['HOME'], 'cache')
 
+# Global variables for caching
+CACHE_EXPIRATION_SECONDS = 50 * 24 * 60 * 60  # 50 days in seconds
+cached_pages_count = 0
+MAX_PRECACHED_PAGES = 23
+memory_cache = {}
+memory_cache_lock = threading.Lock()
+pre_caching_complete = False
+
 # Check if the Applications folder exists, and if not, create it
 if not os.path.exists(applications_folder):
     os.makedirs(applications_folder)
@@ -43,20 +54,60 @@ def on_treeview_row_activated(treeview, path, column):
     # For example, you can print it, store it, or use it in some other part of your program
     print("Selected:", selected_row_value)
 
-def save_to_cache(url, data):
+def pre_cache_graphql_pages():
+    global pre_caching_complete
+    end_cursor = None
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        for _ in range(MAX_PRECACHED_PAGES):
+            query, variables = build_graphql_query(end_cursor, None)
+            cache_key = generate_cache_key(query, variables)
+            
+            if not get_from_cache(cache_key):
+                future = executor.submit(fetch_and_cache_page, end_cursor)
+                end_cursor = future.result()
+            else:
+                _, end_cursor = process_cached_data(get_from_cache(cache_key), None)
+
+    pre_caching_complete = True  # Indicate that pre-caching is complete
+
+def fetch_and_cache_page(end_cursor):
+    query, variables = build_graphql_query(end_cursor, None)
+    cache_key = generate_cache_key(query, variables)
+    _, new_end_cursor = fetch_and_process_data("https://api.github.com/graphql", query, variables, cache_key, None)
+    return new_end_cursor  # Return the end_cursor for the next page
+
+def save_to_memory_cache(cache_key, data):
+    with memory_cache_lock:
+        memory_cache[cache_key] = data
+
+def get_from_memory_cache(cache_key):
+    with memory_cache_lock:
+        return memory_cache.get(cache_key)
+
+def save_to_cache(cache_key, data):
+    # Save to both memory cache and disk cache
+    save_to_memory_cache(cache_key, data)
     if not os.path.exists(cache_dir):
         os.makedirs(cache_dir)
-    cache_file = os.path.join(cache_dir, f"{url_to_filename(url)}.json")
+    cache_file = os.path.join(cache_dir, f"{cache_key}.json")
     with open(cache_file, 'w') as file:
         json.dump({'timestamp': time.time(), 'data': data}, file)
 
-def get_from_cache(url):
-    cache_file = os.path.join(cache_dir, f"{url_to_filename(url)}.json")
+def get_from_cache(cache_key):
+    # Try getting from memory cache first
+    cached_data = get_from_memory_cache(cache_key)
+    if cached_data:
+        return cached_data
+
+    # Fall back to disk cache
+    cache_file = os.path.join(cache_dir, f"{cache_key}.json")
     if os.path.exists(cache_file):
         with open(cache_file, 'r') as file:
             cache_content = json.load(file)
-        if time.time() - cache_content['timestamp'] < 1 * 6 * 60 * 60:
+        if time.time() - cache_content['timestamp'] < CACHE_EXPIRATION_SECONDS:
+            save_to_memory_cache(cache_key, cache_content['data'])
             return cache_content['data']
+
     return None
 
 def url_to_filename(url):
@@ -65,6 +116,16 @@ def url_to_filename(url):
 def generate_cache_key(query, variables):
     query_string = json.dumps({"query": query, "variables": variables}, sort_keys=True)
     return hashlib.md5(query_string.encode('utf-8')).hexdigest()
+
+def clean_up_cache():
+    if not os.path.exists(cache_dir):
+        return
+    for filename in os.listdir(cache_dir):
+        filepath = os.path.join(cache_dir, filename)
+        if os.path.isfile(filepath):
+            file_creation_time = os.path.getmtime(filepath)
+            if time.time() - file_creation_time > CACHE_EXPIRATION_SECONDS:
+                os.remove(filepath)
 
 # Function to display message using GTK dialog
 def display_message(message):
@@ -77,6 +138,25 @@ def display_message(message):
     )
     dialog.run()
     dialog.destroy()
+
+def global_key_event_handler(widget, event, dialog, entry):
+    keyname = Gdk.keyval_name(event.keyval)
+    if keyname == 'Return':
+        dialog.response(Gtk.ResponseType.OK)
+    elif keyname == 'Escape':
+        dialog.response(Gtk.ResponseType.CANCEL)
+    elif keyname == 'BackSpace':
+        entry.set_text(entry.get_text()[:-1])
+
+def github_token_dialog_key_event_handler(widget, event, dialog, entry):
+    keyname = Gdk.keyval_name(event.keyval)
+    if keyname == 'Return':
+        dialog.response(Gtk.ResponseType.OK)
+    elif keyname == 'Escape':
+        dialog.response(Gtk.ResponseType.CANCEL)
+    elif keyname == 'BackSpace':
+        if not entry.is_focus():
+            dialog.response(Gtk.ResponseType.CANCEL)
 
 # Function to prompt for GitHub token using GTK dialog
 def prompt_for_github_token():
@@ -92,6 +172,10 @@ def prompt_for_github_token():
     entry.set_invisible_char("*")
     entry.show()
     dialog.vbox.pack_end(entry, True, True, 0)
+
+    # Connect the new key event handler for the GitHub token dialog
+    dialog.connect("key-press-event", github_token_dialog_key_event_handler, dialog, entry)
+
     response = dialog.run()
     token = entry.get_text() if response == Gtk.ResponseType.OK else ""
     dialog.destroy()
@@ -151,32 +235,15 @@ def start_loader():
     return dialog
 
 # Function to fetch and parse releases using GitHub REST API with token
-def fetch_releases(url, dialog):
-    # Check if data is available in cache
-    cached_data = get_from_cache(url)
-    if cached_data is not None:
-        return cached_data
-
-    # If not in cache, fetch data from API
+def fetch_releases(url, dialog, use_cache=False):  # Accept the argument but don't use it
     response = requests.get(url, headers={'Authorization': f'token {github_token}'})
     if response.status_code != 200:
-        # Handle error if the request fails
         dialog.destroy()
         display_message("Failed to fetch releases. Please check your network connection or GitHub token.")
         return []
-
-    # Parse the response
     tags = response.json()
-    total_tags = len(tags)
-
-    releases = []
-    for i, tag in enumerate(tags):
-        release_info = tag['tag_name'].split('EA-')[-1]
-        releases.append(release_info)
-
+    releases = [tag['tag_name'].split('EA-')[-1] for tag in tags]
     dialog.destroy()
-    # Save the fetched data to cache
-    save_to_cache(url, releases)
     return releases
 
 # Function to get the URLs for previous and next pages from API response headers with token
@@ -199,29 +266,37 @@ def convert_to_absolute_url(relative_url):
     base_url = "https://api.github.com"
     return f"{base_url}{relative_url}"
 
+
 def search_revision(search_revision):
-    graphql_url = "https://api.github.com/graphql"
+    global pre_caching_complete
     search_revision_number = int(search_revision)
-    end_cursor = None  # Start with no cursor
+    end_cursor = None
     has_more_pages = True
+    fetched_from_api = False
+    page_count = 0
 
     while has_more_pages:
+        # Wait if pre-caching is not yet complete
+        if not pre_caching_complete:
+            time.sleep(1)
+            continue
+
         query, variables = build_graphql_query(end_cursor, search_revision_number)
         cache_key = generate_cache_key(query, variables)
-        cached_data = get_from_cache(cache_key)
+        cached_data = get_from_cache(cache_key) if not fetched_from_api else None
 
         if cached_data:
             result, end_cursor = process_cached_data(cached_data, search_revision_number)
         else:
             result, end_cursor = fetch_and_process_data(graphql_url, query, variables, cache_key, search_revision_number)
+            fetched_from_api = True
 
         if result != "continue" or not end_cursor:
             return result
 
-        # Check if there are more pages to process
+        page_count += 1
         has_more_pages = end_cursor is not None
 
-    # If the loop ends without finding the revision, it means the revision is too low and not found
     return "not_found"
 
 def build_graphql_query(end_cursor, search_revision_number):
@@ -270,10 +345,12 @@ def process_cached_data(cached_data, search_revision_number):
         if 'EA-' in tag_name:
             try:
                 tag_revision_number = int(tag_name.split('EA-')[-1])
-                if tag_revision_number == search_revision_number:
-                    return tag_name.split('EA-')[-1], None
-                elif tag_revision_number < search_revision_number:
-                    return "not_found", None
+                if search_revision_number is not None:
+                    if tag_revision_number == search_revision_number:
+                        return tag_name.split('EA-')[-1], None
+                    elif tag_revision_number < search_revision_number:
+                        return "not_found", None
+                # Additional processing can be added here if needed
             except ValueError:
                 # Skip if the tag name part is not an integer
                 continue
@@ -281,22 +358,25 @@ def process_cached_data(cached_data, search_revision_number):
     return "continue", end_cursor
 
 def process_fetched_data(fetched_data, search_revision_number):
+    if not fetched_data or 'data' not in fetched_data or 'repository' not in fetched_data['data']:
+        return "not_found", None
+
     tags = fetched_data['data']['repository']['refs']['edges']
     pageInfo = fetched_data['data']['repository']['refs']['pageInfo']
     end_cursor = pageInfo['endCursor'] if pageInfo['hasNextPage'] else None
 
-    for edge in tags:
-        tag_name = edge['node']['name']
-        if 'EA-' in tag_name:
-            try:
-                tag_revision_number = int(tag_name.split('EA-')[-1])
-                if tag_revision_number == search_revision_number:
-                    return tag_name.split('EA-')[-1], None
-                elif tag_revision_number < search_revision_number:
-                    return "not_found", None
-            except ValueError:
-                # Skip if the tag name part is not an integer
-                continue
+    if search_revision_number is not None:
+        for edge in tags:
+            tag_name = edge['node']['name']
+            if 'EA-' in tag_name:
+                try:
+                    tag_revision_number = int(tag_name.split('EA-')[-1])
+                    if tag_revision_number == search_revision_number:
+                        return tag_name.split('EA-')[-1], None
+                    elif tag_revision_number < search_revision_number:
+                        return "not_found", None
+                except ValueError:
+                    continue
 
     return "continue", end_cursor
 
@@ -377,9 +457,116 @@ def download_with_progress(url, output_path, revision):
         file.write(str(revision))
     display_message(f"Download complete. Yuzu EA revision EA-{revision} has been installed.")
 
+# Global key event handler
+def global_key_event_handler(widget, event, treeview, liststore, dialog):
+    # Only proceed if treeview and liststore are not None
+    if treeview is not None and liststore is not None:
+        on_key_press_event(event, treeview, liststore, dialog)
+
+# Key press event handler
+def on_key_press_event(event, treeview, liststore, dialog):
+    keyname = Gdk.keyval_name(event.keyval)
+    if keyname == 'Left':
+        navigate_previous_page(treeview, liststore)
+    elif keyname == 'Right':
+        navigate_next_page(treeview, liststore)
+    elif keyname == 'BackSpace':
+        handle_cancel(dialog)
+    elif keyname == 'Return':
+        handle_ok(treeview, dialog)
+    elif keyname == 'Escape':
+        sys.exit(0)
+
+# Define handle_ok function
+def handle_ok(treeview, dialog):
+    model, tree_iter = treeview.get_selection().get_selected()
+    if tree_iter is not None:
+        selected_row_value = model[tree_iter][0]
+        print("OK Selected:", selected_row_value)
+        # Implement your logic for OK action here
+        dialog.response(Gtk.ResponseType.OK)
+
+# Define handle_cancel function
+def handle_cancel(dialog):
+    print("Cancel action triggered")
+    dialog.response(Gtk.ResponseType.CANCEL)
+
+# Navigation functions: navigate_previous_page and navigate_next_page
+def navigate_previous_page(treeview, liststore):
+    global prev_url
+    if prev_url:
+        update_treeview_with_current_page(treeview, liststore, prev_url)
+
+def navigate_next_page(treeview, liststore):
+    global next_url
+    if next_url:
+        update_treeview_with_current_page(treeview, liststore, next_url)
+
+# Update treeview with current page function
+def update_treeview_with_current_page(treeview, liststore, url):
+    global current_url, prev_url, next_url, installed_tag, backup_tag
+
+    current_url = url  # Update the current URL
+
+    # Create and start the loader dialog
+    loader_dialog = start_loader()
+    available_tags = fetch_releases(current_url, loader_dialog)
+
+    # Update the prev_url and next_url for pagination
+    prev_url, next_url = get_pagination_urls(current_url)
+
+    # Close the loader dialog after fetching releases
+    loader_dialog.destroy()
+
+    # Clear existing data in the liststore
+    liststore.clear()
+
+    # Check installed and backed up tags
+    try:
+        with open(log_file, 'r') as file:
+            installed_tag = file.read().strip()
+        with open(backup_log_file, 'r') as file:
+            backup_tag = file.read().strip()
+    except FileNotFoundError:
+        installed_tag = backup_tag = ""
+
+    # Add Previous Page option if applicable
+    if prev_url:
+        liststore.append(["Previous Page"])
+
+    # Populate the liststore with new data and add tags
+    for tag in available_tags:
+        tag_label = tag
+        if tag == installed_tag:
+            tag_label += " (installed)"
+        if tag == backup_tag:
+            tag_label += " (backed up)"
+        liststore.append([tag_label])
+
+    # Add Next Page option if applicable
+    if next_url:
+        liststore.append(["Next Page"])
+
+def search_dialog_key_event_handler(widget, event, dialog, entry):
+    keyname = Gdk.keyval_name(event.keyval)
+    if keyname == 'Return':
+        dialog.response(Gtk.ResponseType.OK)
+    elif keyname == 'Escape':
+        dialog.response(Gtk.ResponseType.CANCEL)
+    elif keyname == 'BackSpace':
+        if not entry.is_focus():
+            dialog.response(Gtk.ResponseType.CANCEL)
+
 # Main loop
 def main():
-    global current_url, github_token
+    global current_url, github_token, prev_url, next_url
+
+    # Clean up cache at the start of the script
+    clean_up_cache()
+
+    # Start pre-caching in a separate thread
+    pre_cache_thread = threading.Thread(target=pre_cache_graphql_pages)
+    pre_cache_thread.start()
 
     current_url = "https://api.github.com/repos/pineappleEA/pineapple-src/releases"
     search_done = False
@@ -387,7 +574,7 @@ def main():
 
     while True:
         if not search_done:
-            dialog = Gtk.MessageDialog(
+            search_dialog = Gtk.MessageDialog(
                 transient_for=None,
                 flags=0,
                 message_type=Gtk.MessageType.QUESTION,
@@ -396,10 +583,17 @@ def main():
             )
             entry = Gtk.Entry()
             entry.show()
-            dialog.vbox.pack_end(entry, True, True, 0)
-            response = dialog.run()
-            requested_revision = entry.get_text() if response == Gtk.ResponseType.OK else None
-            dialog.destroy()
+            search_dialog.vbox.pack_end(entry, True, True, 0)
+
+            # Connect the specialized key event handler for the search dialog
+            search_dialog.connect("key-press-event", search_dialog_key_event_handler, search_dialog, entry)
+
+            response = search_dialog.run()
+            if response == Gtk.ResponseType.OK:
+                requested_revision = entry.get_text()
+            else:
+                requested_revision = None
+            search_dialog.destroy()
 
             if requested_revision:
                 found_revision = search_revision(requested_revision)
@@ -419,17 +613,18 @@ def main():
                     continue
             search_done = True
 
-        # Fetching the releases
         loader_dialog = start_loader()
         prev_url, next_url = get_pagination_urls(current_url)
-        available_tags = fetch_releases(current_url, loader_dialog)
+        available_tags = fetch_releases(current_url, loader_dialog, use_cache=False)
+        loader_dialog.destroy()
 
-        # Checking if releases are available
         if not available_tags:
             display_message("Failed to find available releases. Check your internet connection or GitHub token.")
             continue
 
-        # Preparing the menu options
+        # Sorting the releases in descending order to ensure the latest revision is shown
+        available_tags.sort(key=lambda x: int(x), reverse=True)
+
         installed_tag = backup_tag = ""
         try:
             with open(log_file, 'r') as file:
@@ -448,13 +643,11 @@ def main():
                 menu_entry += " (backed up)"
             menu_options.append(menu_entry)
 
-        # Adding pagination options
         if prev_url:
             menu_options.insert(0, "Previous Page")
         if next_url:
             menu_options.append("Next Page")
 
-        # Creating the menu dialog
         liststore = Gtk.ListStore(str)
         for option in menu_options:
             liststore.append([option])
@@ -476,9 +669,11 @@ def main():
         dialog.set_default_size(400, 400)
         dialog.show_all()
 
+        # Connect the global key event handler and pass the dialog as an argument
+        dialog.connect("key-press-event", global_key_event_handler, treeview, liststore, dialog)
+
         response = dialog.run()
 
-        # Handling dialog response
         if response == Gtk.ResponseType.CANCEL:
             dialog.destroy()
             return
@@ -491,13 +686,13 @@ def main():
                 if revision_selection == "Previous Page":
                     if prev_url:
                         current_url = prev_url
-                        continue  # Go back to the start of the loop to reload data
+                        continue
                     else:
                         display_message("No previous page.")
                 elif revision_selection == "Next Page":
                     if next_url:
                         current_url = next_url
-                        continue  # Go back to the start of the loop to reload data
+                        continue
                     else:
                         display_message("No next page.")
                 elif revision_selection == "":
