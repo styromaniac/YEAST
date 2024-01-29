@@ -17,9 +17,6 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib, Gdk
 
-# Environment variable setup
-os.environ.pop('LD_PRELOAD', None)
-
 applications_folder = os.path.join(os.environ['HOME'], 'Applications')
 
 log_file = os.path.join(applications_folder, 'yuzu-ea-revision.log')
