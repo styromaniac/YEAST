@@ -28,8 +28,8 @@ backup_path = os.path.join(applications_folder, 'yuzu-ea-backup.AppImage')
 temp_log_file = ('/dev/shm/yuzu-ea-temp-revision.log')
 temp_path = ('/dev/shm/yuzu-ea-temp.AppImage')
 
-config_file = os.path.join(os.environ['HOME'], '.config/YEAST.conf')
-cache_dir = os.path.join(os.environ['HOME'], '.cache', 'YEAST')
+config_file = os.path.join(os.environ['HOME'], 'config/YEAST.conf')
+cache_dir = os.path.join(os.environ['HOME'], 'cache', 'YEAST')
 
 # Global variables for caching
 CACHE_EXPIRATION_SECONDS = 50 * 24 * 60 * 60  # 50 days in seconds
