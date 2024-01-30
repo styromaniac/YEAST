@@ -22,14 +22,15 @@ applications_folder = os.path.join(os.environ['HOME'], 'Applications')
 log_file = os.path.join(applications_folder, 'yuzu-ea-revision.log')
 backup_log_file = os.path.join(applications_folder, 'yuzu-ea-backup-revision.log')
 
-appimage_path = os.path.join(applications_folder, 'yuzu-ea.AppImage') 
+appimage_path = os.path.join(applications_folder, 'yuzu-ea.AppImage')
 backup_path = os.path.join(applications_folder, 'yuzu-ea-backup.AppImage')
 
 temp_log_file = ('/dev/shm/yuzu-ea-temp-revision.log')
 temp_path = ('/dev/shm/yuzu-ea-temp.AppImage')
 
-config_file = os.path.join(os.environ['HOME'], '.config/YEAST.conf')
-cache_dir = os.path.join(os.environ['HOME'], 'cache')
+config_dir = os.path.join(os.environ['HOME'], '.config')
+cache_dir = os.path.join(os.environ['HOME'], '.cache', 'YEAST')
+config_file = os.path.join(config_dir, 'YEAST.conf')
 
 # Global variables for caching
 CACHE_EXPIRATION_SECONDS = 50 * 24 * 60 * 60  # 50 days in seconds
@@ -39,9 +40,14 @@ memory_cache = {}
 memory_cache_lock = threading.Lock()
 pre_caching_complete = False
 
-# Check if the Applications folder exists, and if not, create it
-if not os.path.exists(applications_folder):
-    os.makedirs(applications_folder)
+# Check if the Applications folders exist, and if not, create them
+def ensure_directory_exists(directory_path):
+    if not os.path.exists(directory_path):
+        os.makedirs(directory_path)
+
+ensure_directory_exists(applications_folder)
+ensure_directory_exists(cache_dir)
+ensure_directory_exists(config_dir)
 
 def on_treeview_row_activated(treeview, path, column):
     model = treeview.get_model()
@@ -58,7 +64,7 @@ def pre_cache_graphql_pages():
         for _ in range(MAX_PRECACHED_PAGES):
             query, variables = build_graphql_query(end_cursor, None)
             cache_key = generate_cache_key(query, variables)
-            
+
             if not get_from_cache(cache_key):
                 future = executor.submit(fetch_and_cache_page, end_cursor)
                 end_cursor = future.result()
