@@ -22,14 +22,14 @@ applications_folder = os.path.join(os.environ['HOME'], 'Applications')
 log_file = os.path.join(applications_folder, 'yuzu-ea-revision.log')
 backup_log_file = os.path.join(applications_folder, 'yuzu-ea-backup-revision.log')
 
-appimage_path = os.path.join(applications_folder, 'yuzu-ea.AppImage') 
+appimage_path = os.path.join(applications_folder, 'yuzu-ea.AppImage')
 backup_path = os.path.join(applications_folder, 'yuzu-ea-backup.AppImage')
 
 temp_log_file = ('/dev/shm/yuzu-ea-temp-revision.log')
 temp_path = ('/dev/shm/yuzu-ea-temp.AppImage')
 
 config_file = os.path.join(os.environ['HOME'], '.config/YEAST.conf')
-cache_dir = os.path.join(os.environ['HOME'], 'cache')
+cache_dir = os.path.join(os.environ['HOME'], '.cache', 'YEAST')
 
 # Global variables for caching
 CACHE_EXPIRATION_SECONDS = 50 * 24 * 60 * 60  # 50 days in seconds
@@ -58,7 +58,7 @@ def pre_cache_graphql_pages():
         for _ in range(MAX_PRECACHED_PAGES):
             query, variables = build_graphql_query(end_cursor, None)
             cache_key = generate_cache_key(query, variables)
-            
+
             if not get_from_cache(cache_key):
                 future = executor.submit(fetch_and_cache_page, end_cursor)
                 end_cursor = future.result()
