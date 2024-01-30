@@ -139,6 +139,7 @@ def display_message(message):
         buttons=Gtk.ButtonsType.OK,
         text=message,
     )
+    dialog.set_default_size(1280, 80)
     dialog.run()
     dialog.destroy()
 
@@ -170,6 +171,7 @@ def prompt_for_github_token():
         buttons=Gtk.ButtonsType.OK_CANCEL,
         text="Enter your GitHub personal access token:"
     )
+    dialog.set_default_size(1280, 80)
     entry = Gtk.Entry()
     entry.set_visibility(False)
     entry.set_invisible_char("*")
@@ -229,7 +231,7 @@ def start_loader():
         text="Searching for revisions..."
     )
     dialog.set_title("Searching")
-    dialog.set_default_size(300, 100)
+    dialog.set_default_size(1280, 800)
 
     context = GLib.MainContext.default()
     while GLib.MainContext.iteration(context, False):
@@ -405,7 +407,7 @@ def silent_ping(host, count=1):
 
 def create_progress_dialog(title="Downloading", text="Starting download..."):
     dialog = Gtk.Dialog(title)
-    dialog.set_default_size(300, 50)
+    dialog.set_default_size(1280, 800)
     progress_bar = Gtk.ProgressBar(show_text=True)
     dialog.vbox.pack_start(progress_bar, True, True, 0)
     dialog.show_all()
@@ -584,6 +586,7 @@ def main():
                 buttons=Gtk.ButtonsType.OK_CANCEL,
                 text="Enter a revision number to search for (leave blank to browse):"
             )
+            search_dialog.set_default_size(1280, 80)
             entry = Gtk.Entry()
             entry.show()
             search_dialog.vbox.pack_end(entry, True, True, 0)
@@ -669,7 +672,7 @@ def main():
         dialog = Gtk.Dialog(title="Select Yuzu EA Revision", transient_for=None, flags=0)
         dialog.add_buttons(Gtk.STOCK_OK, Gtk.ResponseType.OK, Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL)
         dialog.vbox.pack_start(scrolled_window, True, True, 0)
-        dialog.set_default_size(400, 400)
+        dialog.set_default_size(80, 800)
         dialog.show_all()
 
         # Connect the global key event handler and pass the dialog as an argument
