@@ -231,7 +231,7 @@ def start_loader():
         text="Searching for revisions..."
     )
     dialog.set_title("Searching")
-    dialog.set_default_size(1280, 800)
+    dialog.set_default_size(1280, 80)
 
     context = GLib.MainContext.default()
     while GLib.MainContext.iteration(context, False):
@@ -407,7 +407,7 @@ def silent_ping(host, count=1):
 
 def create_progress_dialog(title="Downloading", text="Starting download..."):
     dialog = Gtk.Dialog(title)
-    dialog.set_default_size(1280, 800)
+    dialog.set_default_size(1280, 80)
     progress_bar = Gtk.ProgressBar(show_text=True)
     dialog.vbox.pack_start(progress_bar, True, True, 0)
     dialog.show_all()
