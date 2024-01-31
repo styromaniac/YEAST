@@ -39,6 +39,7 @@ MAX_PRECACHED_PAGES = 23
 memory_cache = {}
 memory_cache_lock = threading.Lock()
 pre_caching_complete = False
+GRAPHQL_URL = "https://api.github.com/graphql"
 
 # Check if the Applications folders exist, and if not, create them
 def ensure_directory_exists(directory_path):
@@ -273,14 +274,14 @@ def convert_to_absolute_url(relative_url):
 
 
 def search_revision(search_revision):
-    global pre_caching_complete
+    global pre_caching_complete, GRAPHQL_URL
     search_revision_number = int(search_revision)
     end_cursor = None
     has_more_pages = True
     fetched_from_api = False
     page_count = 0
 
-    while has_more_pages:
+    while has_more_pages and not fetched_from_api:
         # Wait if pre-caching is not yet complete
         if not pre_caching_complete:
             time.sleep(1)
@@ -288,20 +289,24 @@ def search_revision(search_revision):
 
         query, variables = build_graphql_query(end_cursor, search_revision_number)
         cache_key = generate_cache_key(query, variables)
-        cached_data = get_from_cache(cache_key) if not fetched_from_api else None
+        cached_data = get_from_cache(cache_key)
 
         if cached_data:
             result, end_cursor = process_cached_data(cached_data, search_revision_number)
+            if result != "continue":
+                return result
         else:
-            result, end_cursor = fetch_and_process_data(graphql_url, query, variables, cache_key, search_revision_number)
-            fetched_from_api = True
+            # Fetch from API if the data is not in the cache
+            result, end_cursor = fetch_and_process_data(GRAPHQL_URL, query, variables, cache_key, search_revision_number)
+            fetched_from_api = True  # Prevent further caching attempts
 
-        if result != "continue" or not end_cursor:
-            return result
+            if result != "continue":
+                return result
 
         page_count += 1
         has_more_pages = end_cursor is not None
 
+    # If the desired revision is not found in cache and API, return "not_found"
     return "not_found"
 
 def build_graphql_query(end_cursor, search_revision_number):
