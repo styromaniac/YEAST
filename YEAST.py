@@ -178,18 +178,25 @@ def read_gh_token():
             token = f.read().strip()
     except FileNotFoundError:
         pass
-    token_status = validate_gh_token(token)
-    while token_status != "valid":
-        token = prompt_for_gh_token()
-        if not token:
-            disp_msg("No GitHub token provided. To generate a GitHub personal access token, visit https://github.com/settings/tokens")
-            continue
+
+    try:
         token_status = validate_gh_token(token)
-        if token_status == "valid":
-            with open(cfg_f, 'w') as f:
-                f.write(token)
-        else:
-            disp_msg("Invalid GitHub token provided. Please enter a valid token.")
+        while token_status != "valid":
+            token = prompt_for_gh_token()
+            if not token:
+                disp_msg("No GitHub token provided. To generate a GitHub personal access token, visit https://github.com/settings/tokens")
+                continue
+            token_status = validate_gh_token(token)
+            if token_status == "valid":
+                with open(cfg_f, 'w') as f:
+                    f.write(token)
+            else:
+                disp_msg("Invalid GitHub token provided. Please enter a valid token.")
+    except requests.exceptions.ConnectionError:
+        disp_msg("Failed to connect to GitHub to validate the token. Please check your internet connection.")
+    except Exception as e:
+        disp_msg(f"An unexpected error occurred: {e}")
+
     return token
 
 gh_token = read_gh_token()
@@ -210,15 +217,24 @@ def start_loader():
     return dlg
 
 def fetch_releases(url, dlg, use_cache=False):
-    resp = requests.get(url, headers={'Authorization': f'token {gh_token}'})
-    if resp.status_code != 200:
+    try:
+        resp = requests.get(url, headers={'Authorization': f'token {gh_token}'})
+        if resp.status_code != 200:
+            dlg.destroy()
+            disp_msg("Failed to fetch releases. Please check your network connection or GitHub token.")
+            return []
+        tags = resp.json()
+        releases = [tag['tag_name'].split('EA-')[-1] for tag in tags]
         dlg.destroy()
-        disp_msg("Failed to fetch releases. Please check your network connection or GitHub token.")
+        return releases
+    except requests.exceptions.ConnectionError:
+        dlg.destroy()
+        disp_msg("Failed to connect to GitHub. Please check your internet connection.")
         return []
-    tags = resp.json()
-    releases = [tag['tag_name'].split('EA-')[-1] for tag in tags]
-    dlg.destroy()
-    return releases
+    except Exception as e:
+        dlg.destroy()
+        disp_msg(f"An unexpected error occurred while fetching releases: {e}")
+        return []
 
 def get_pagination_urls(url):
     resp = requests.head(url, headers={'Authorization': f'token {gh_token}'})
@@ -396,7 +412,7 @@ def dl_with_prog(url, out_pth, rev):
     os.chmod(out_pth, 0o755)
     with open(log_f, 'w') as f:
         f.write(str(rev))
-    disp_msg(f"Download complete. Yuzu EA revision EA-{rev} has been installed.")
+    disp_msg(f"Download complete. Yuzu EA-{rev} has been installed.")
 
 def gk_event_hdlr(widget, event, tv, lststore, dlg):
     if tv is not None and lststore is not None:
@@ -473,9 +489,66 @@ def search_dlg_k_event_hdlr(widget, event, dlg, entry):
         if not entry.is_focus():
             dlg.response(Gtk.ResponseType.CANCEL)
 
+def ping_github():
+    try:
+        subprocess.run(["ping", "-c", "1", "github.com"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+def read_revision_number(log_path):
+    try:
+        with open(log_path, 'r') as f:
+            return f.read().strip()
+    except FileNotFoundError:
+        return "unknown"  # Return a placeholder if the log file doesn't exist
+
+def prompt_revert_to_backup():
+    # Read the currently installed and backed up revision numbers
+    installed_rev = read_revision_number(log_f)
+    backed_up_rev = read_revision_number(bkup_log_f)
+
+    # Construct the message text with the revision information
+    message_text = f"Currently installed revision: {installed_rev}\n" \
+                   f"Backup revision: {backed_up_rev}\n\n" \
+                   "Would you like to revert to the backup installation of Yuzu EA?"
+
+    dialog = Gtk.MessageDialog(
+        transient_for=None,
+        flags=0,
+        message_type=Gtk.MessageType.QUESTION,
+        buttons=Gtk.ButtonsType.YES_NO,
+        text=message_text
+    )
+    response = dialog.run()
+    dialog.destroy()
+    return response == Gtk.ResponseType.YES
+
+def revert_to_backup():
+    if os.path.exists(appimg_pth) and os.path.exists(bkup_pth):
+        shutil.move(appimg_pth, temp_pth)  # Move current AppImage to a temporary location
+        shutil.move(bkup_pth, appimg_pth)  # Move backup AppImage to the current location
+        shutil.move(temp_pth, bkup_pth)  # Move the temporary AppImage to the backup location
+
+        if os.path.exists(log_f) and os.path.exists(bkup_log_f):
+            shutil.move(log_f, temp_log_f)  # Move current log to a temporary location
+            shutil.move(bkup_log_f, log_f)  # Move backup log to the current log's location
+            shutil.move(temp_log_f, bkup_log_f)  # Move the temporary log to the backup log's location
+
+        print("Successfully reverted to the backup installation of Yuzu EA.")
+    else:
+        print("Backup installation not found.")
+
 # Main loop
 def main():
     global current_url, gh_token, prev_url, next_url
+
+    if not ping_github():
+        # If GitHub is not reachable, ask the user if they want to revert to the backup
+        if prompt_revert_to_backup():
+            revert_to_backup()
+            return  # Stop execution after reverting to backup
+
     clean_up_cache()
     pre_cache_thread = threading.Thread(target=pre_cache_gql_pages)
     pre_cache_thread.start()
