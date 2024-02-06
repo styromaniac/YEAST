@@ -535,19 +535,41 @@ def revert_to_backup():
             shutil.move(bkup_log_f, log_f)  # Move backup log to the current log's location
             shutil.move(temp_log_f, bkup_log_f)  # Move the temporary log to the backup log's location
 
-        print("Successfully reverted to the backup installation of Yuzu EA.")
+        # Show a success dialog
+        dialog = Gtk.MessageDialog(
+            transient_for=None,
+            flags=0,
+            message_type=Gtk.MessageType.INFO,
+            buttons=Gtk.ButtonsType.OK,
+            text="Successfully reverted to the backup installation of Yuzu EA."
+        )
+        dialog.run()
+        dialog.destroy()
     else:
-        print("Backup installation not found.")
+        # Show an error dialog if the backup installation is not found
+        dialog = Gtk.MessageDialog(
+            transient_for=None,
+            flags=0,
+            message_type=Gtk.MessageType.ERROR,
+            buttons=Gtk.ButtonsType.OK,
+            text="Backup installation not found."
+        )
+        dialog.run()
+        dialog.destroy()
 
 # Main loop
 def main():
     global current_url, gh_token, prev_url, next_url
 
     if not ping_github():
-        # If GitHub is not reachable, ask the user if they want to revert to the backup
-        if prompt_revert_to_backup():
-            revert_to_backup()
-            return  # Stop execution after reverting to backup
+        user_choice = prompt_revert_to_backup()
+        if user_choice:
+            revert_to_backup()  # This will now show a success dialog upon completion
+            return  # Exit after reverting to backup
+        else:
+            # If the user chooses not to revert, exit the application
+            print("Exiting application.")
+            return # Stop execution after reverting to backup
 
     clean_up_cache()
     pre_cache_thread = threading.Thread(target=pre_cache_gql_pages)
