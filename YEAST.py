@@ -115,17 +115,23 @@ def clean_up_cache():
             if time.time() - f_ctime > cache_exp:
                 os.remove(fpath)
 
-def disp_msg(msg):
-    dlg = Gtk.MessageDialog(
-        transient_for=None,
-        flags=0,
-        message_type=Gtk.MessageType.INFO,
-        buttons=Gtk.ButtonsType.OK,
-        text=msg,
-    )
-    dlg.set_default_size(1280, 80)
-    dlg.run()
-    dlg.destroy()
+def disp_msg(msg, use_markup=False):
+    dialog = Gtk.Dialog(flags=0)
+    dialog.set_default_size(1280, 80)
+    label = Gtk.Label()
+    if use_markup:
+        label.set_markup(msg)
+        label.set_line_wrap(True)  # Enable line wrapping for long messages
+    else:
+        label.set_text(msg)
+    label.show()
+    dialog.vbox.pack_start(label, True, True, 0)
+    button = Gtk.Button(stock=Gtk.STOCK_OK)
+    button.connect("clicked", lambda w: dialog.destroy())
+    button.show()
+    dialog.action_area.pack_start(button, True, True, 0)
+    dialog.run()
+    dialog.destroy()
 
 def gk_event_hdlr(widget, event, dlg, entry):
     keyname = Gdk.keyval_name(event.keyval)
@@ -184,7 +190,7 @@ def read_gh_token():
         while token_status != "valid":
             token = prompt_for_gh_token()
             if not token:
-                disp_msg("No GitHub token provided. To generate a GitHub personal access token, visit https://github.com/settings/tokens")
+                disp_msg("No GitHub token provided. To generate a GitHub personal access token, visit <a href=\"https://github.com/settings/tokens\" title=\"GitHub tokens\">https://github.com/settings/tokens</a>", use_markup=True)
                 continue
             token_status = validate_gh_token(token)
             if token_status == "valid":
@@ -509,7 +515,7 @@ def prompt_revert_to_backup():
     backed_up_rev = read_revision_number(bkup_log_f)
 
     # Construct the message text with the revision information
-    message_text = f"Currently installed revision: {installed_rev}\n" \
+    message_text = f"Installed revision: {installed_rev}\n" \
                    f"Backup revision: {backed_up_rev}\n\n" \
                    "Would you like to revert to the backup installation of Yuzu EA?"
 
@@ -535,7 +541,7 @@ def revert_to_backup():
             shutil.move(bkup_log_f, log_f)  # Move backup log to the current log's location
             shutil.move(temp_log_f, bkup_log_f)  # Move the temporary log to the backup log's location
 
-        # Show a success dialog
+        # Show a success dialog with specified size
         dialog = Gtk.MessageDialog(
             transient_for=None,
             flags=0,
@@ -543,10 +549,11 @@ def revert_to_backup():
             buttons=Gtk.ButtonsType.OK,
             text="Successfully reverted to the backup installation of Yuzu EA."
         )
+        dialog.set_default_size(1280, 80)  # Set the dialog size
         dialog.run()
         dialog.destroy()
     else:
-        # Show an error dialog if the backup installation is not found
+        # Show an error dialog if the backup installation is not found, with specified size
         dialog = Gtk.MessageDialog(
             transient_for=None,
             flags=0,
@@ -554,6 +561,7 @@ def revert_to_backup():
             buttons=Gtk.ButtonsType.OK,
             text="Backup installation not found."
         )
+        dialog.set_default_size(1280, 80)  # Set the dialog size
         dialog.run()
         dialog.destroy()
 
