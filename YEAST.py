@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import threading
+import multiprocessing
 import subprocess
 import requests
 import json
@@ -50,7 +51,8 @@ def on_tv_row_act(tv, pth, col):
 def pre_cache_gql_pages():
     global pre_caching_done, graphql_url
     e_cursor = None
-    with ThreadPoolExecutor(max_workers=8) as exec:
+    # Use multiprocessing.cpu_count() to dynamically set the number of workers
+    with ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()) as exec:
         for _ in range(max_precached):
             qry, vars = build_gql_qry(e_cursor, None)
             cache_k = gen_cache_key(qry, vars)
@@ -121,15 +123,19 @@ def disp_msg(msg, use_markup=False):
     label = Gtk.Label()
     if use_markup:
         label.set_markup(msg)
-        label.set_line_wrap(True)  # Enable line wrapping for long messages
     else:
         label.set_text(msg)
+    label.set_line_wrap(True)  # Enable line wrapping for long messages
     label.show()
     dialog.vbox.pack_start(label, True, True, 0)
-    button = Gtk.Button(stock=Gtk.STOCK_OK)
+
+    # Updated to use new_with_label instead of deprecated stock items
+    button = Gtk.Button.new_with_label("OK")
     button.connect("clicked", lambda w: dialog.destroy())
     button.show()
     dialog.action_area.pack_start(button, True, True, 0)
+
+    dialog.show_all()
     dialog.run()
     dialog.destroy()
 
