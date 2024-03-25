@@ -197,7 +197,7 @@ def read_gh_token():
             token = prompt_for_gh_token()
             if not token:
                 disp_msg("No GitHub token provided. To generate a GitHub personal access token, visit <a href=\"https://github.com/settings/tokens\" title=\"GitHub tokens\">https://github.com/settings/tokens</a>", use_markup=True)
-                continue
+                exit(1)
             token_status = validate_gh_token(token)
             if token_status == "valid":
                 with open(cfg_f, 'w') as f:
